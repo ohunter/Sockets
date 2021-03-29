@@ -82,7 +82,4 @@ namespace Sockets {
                         return result;
                 }
         };
-
-        // template class ThreadPool<unsigned int>;
-        // 
 }
