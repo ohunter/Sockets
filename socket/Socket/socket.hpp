@@ -9,6 +9,8 @@
 #include <sys/socket.h>
 
 namespace Sockets {
+    // These enums are used to track information about what kind of socket a
+    // socket object is
     enum class Domain {
         Undefined = AF_UNSPEC,
         UNIX = AF_UNIX,
@@ -20,13 +22,23 @@ namespace Sockets {
     enum class ByteOrder { Native, Little, Big };
     enum class Operation { Blocking, Non_blocking };
 
+    // This function are used to convert DNS resolvable names and IPs to a
+    // structure that is more suitable for the sockets
     struct addrinfo *resolve(std::string address, std::string service,
                              Domain dom = Domain::Undefined,
                              Type ty = Type::Undefined, int flags = 0);
+
+    // This function are used to convert DNS resolvable names and IPs to a
+    // structure that is more suitable for the sockets
     struct addrinfo *resolve(std::string address, uint16_t port,
                              Domain dom = Domain::Undefined,
                              Type ty = Type::Undefined, int flags = 0);
 
+    /**
+     * @brief The base socket class. Should not be instantiated by itself, but
+     * rather through one of it's derived classes. Essentially acts as a
+     * convenience layer between the user and the standard POSIX sockets.
+     */
     class Socket {
       protected:
         std::mutex mtx;
@@ -59,7 +71,7 @@ namespace Sockets {
               type(other->type), state(other->state),
               byteorder(other->byteorder), operation(other->operation) { }
 
-        ~Socket() {}
+        ~Socket() { }
 
         virtual void close() = 0;
         virtual size_t send(const char *buf, size_t buflen) = 0;
@@ -68,6 +80,11 @@ namespace Sockets {
         const int &fd() { return this->_fd; }
     };
 
+    /**
+     * @brief A class which handles basic TCP socket. All the data is streamed
+     * to the other end with all the standard TCP guarantees.
+     *
+     */
     class TCPSocket : public Socket {
       public:
         TCPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
@@ -96,6 +113,12 @@ namespace Sockets {
         size_t recv(char *buf, size_t buflen);
     };
 
+    /**
+     * @brief A class which handles basic UDP sockets. The user is in charge of
+     * handiling issues such as packages being lost or arriving out of order. No
+     * guarantees whatsoever.
+     *
+     */
     class UDPSocket : public Socket {
       public:
         UDPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
@@ -123,6 +146,21 @@ namespace Sockets {
         size_t recv(char *buf, size_t buflen);
     };
 
+    /**
+     * @brief A class which provides a TLS layer around the standard TCP socket.
+     * The user should supply all the needed certificates if security is
+     * critical. Don't rely on your default CA settings unless you are
+     * prototyping.
+     *
+     */
     class TLSSocket : public TCPSocket { };
+
+    /**
+     * @brief A class which provides a TLS layer around the standard UDP socket.
+     * The user should supply all the needed certificates if security is
+     * critical. Don't rely on your default CA settings unless you are
+     * prototyping.
+     *
+     */
     class DTLSSocket : public UDPSocket { };
 } // namespace Sockets
