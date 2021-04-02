@@ -6,6 +6,7 @@ target_sources(
         socket.cpp
         tcpsocket.cpp
         udpsocket.cpp
+        tlssocket.cpp
 )
 
 # target_sources_test(

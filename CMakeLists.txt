@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(Socket LANGUAGES CXX)
 set(libName Sockets)
 
+find_package(OpenSSL REQUIRED)
+
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" OFF)
 
 add_library(${libName} OBJECT "")
@@ -34,7 +36,7 @@ install(
 
 target_compile_options(${libName} PRIVATE -Wall -Werror)
 target_compile_features(${libName} PRIVATE cxx_std_11)
-target_link_libraries(${libName} pthread)
+target_link_libraries(${libName} pthread ${OPENSSL_LIBRARIES})
 
 if (BUILD_EXAMPLES)
     add_subdirectory(examples)

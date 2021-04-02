@@ -8,6 +8,9 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+
 namespace Sockets {
     // These enums are used to track information about what kind of socket a
     // socket object is
@@ -51,13 +54,13 @@ namespace Sockets {
         ByteOrder byteorder = ByteOrder::Native;
         Operation operation = Operation::Blocking;
 
-      public:
         Socket(int fd, sockaddr_storage addr, Domain dom, Type ty,
                State st = State::Undefined, ByteOrder by = ByteOrder::Native,
                Operation op = Operation::Blocking)
             : _fd(fd), addr(addr), domain(dom), type(ty), state(st),
               byteorder(by), operation(op){};
 
+      public:
         Socket(Socket &other)
             : _fd(other._fd), addr(other.addr), domain(other.domain),
               type(other.type), state(other.state), byteorder(other.byteorder),
@@ -86,11 +89,12 @@ namespace Sockets {
      *
      */
     class TCPSocket : public Socket {
-      public:
+      protected:
         TCPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
                   ByteOrder by, Operation op)
             : Socket(fd, addr, dom, Type::Stream, st, by, op) { }
 
+      public:
         TCPSocket(TCPSocket &other) : Socket(other) { }
         TCPSocket(TCPSocket &&other) : Socket(other) { }
         TCPSocket(TCPSocket *other) : Socket(other) { }
@@ -108,7 +112,7 @@ namespace Sockets {
 
         TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
-        void close();
+        void close() override;
         size_t send(const char *buf, size_t buflen);
         size_t recv(char *buf, size_t buflen);
     };
@@ -120,11 +124,12 @@ namespace Sockets {
      *
      */
     class UDPSocket : public Socket {
-      public:
+      protected:
         UDPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
                   ByteOrder by, Operation op)
             : Socket(fd, addr, dom, Type::Datagram, st, by, op) { }
 
+      public:
         UDPSocket(UDPSocket &other) : Socket(other) { }
         UDPSocket(UDPSocket &&other) : Socket(other) { }
         UDPSocket(UDPSocket *other) : Socket(other) { }
@@ -141,7 +146,7 @@ namespace Sockets {
 
         UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
-        void close();
+        void close() override;
         size_t send(const char *buf, size_t buflen);
         size_t recv(char *buf, size_t buflen);
     };
@@ -152,14 +157,57 @@ namespace Sockets {
      * critical. Don't rely on your default CA settings unless you are
      * prototyping.
      *
+     * Before initializing this class, make sure to have initialized OpenSSL as
+     * this will not take responsibility for that and the cleanup which comes
+     * from it.
+     *
      */
-    class TLSSocket : public TCPSocket { };
+    class TLSSocket : public TCPSocket {
+        SSL* ssl = nullptr;
+
+      protected:
+        TLSSocket(int fd, sockaddr_storage addr, Domain dom, State st,
+                  ByteOrder by, Operation op)
+            : TCPSocket(fd, addr, dom, st, by, op) { }
+
+        TLSSocket(TCPSocket &tcp, SSL_CTX *ctx);
+        TLSSocket(TCPSocket *tcp, SSL_CTX *ctx);
+
+      public:
+        TLSSocket(TLSSocket &other) : TCPSocket(other) { }
+        TLSSocket(TLSSocket &&other) : TCPSocket(other) { }
+        TLSSocket(TLSSocket *other) : TCPSocket(other) { }
+
+        ~TLSSocket();
+
+        static TLSSocket Service(std::string address, uint16_t port,
+                                 SSL_CTX *ctx, Domain dom,
+                                 ByteOrder bo = ByteOrder::Native,
+                                 Operation op = Operation::Blocking,
+                                 int backlog = 100);
+
+        static TLSSocket Connect(std::string address, uint16_t port,
+                                 SSL_CTX *ctx, Domain dom,
+                                 ByteOrder bo = ByteOrder::Native,
+                                 Operation op = Operation::Blocking);
+
+        TLSSocket accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
+                         int flag = 0);
+
+        void close();
+        size_t send(const char *buf, size_t buflen);
+        size_t recv(char *buf, size_t buflen);
+    };
 
     /**
      * @brief A class which provides a TLS layer around the standard UDP socket.
      * The user should supply all the needed certificates if security is
      * critical. Don't rely on your default CA settings unless you are
      * prototyping.
+     *
+     * Before initializing this class, make sure to have initialized OpenSSL as
+     * this will not take responsibility for that and the cleanup which comes
+     * from it.
      *
      */
     class DTLSSocket : public UDPSocket { };
