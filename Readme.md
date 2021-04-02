@@ -4,6 +4,14 @@ A simple git repo for socket development in C++ without the need for a huge amou
 
 ## Examples
 
-### [Example 0](https://github.com/ohunter/Sockets/tree/master/examples/0)
+### TCP
+
+#### [Example 0](https://github.com/ohunter/Sockets/tree/master/examples/tcp/0)
 
 This example is a TCP echo server which dies after connecting and sending one message.
+
+### UDP
+
+#### [Example 0](https://github.com/ohunter/Sockets/tree/master/examples/udp/0)
+
+This example is a UDP echo server which dies after connecting and sending one message.

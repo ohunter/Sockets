@@ -12,15 +12,15 @@
 
 namespace Sockets {
 
-    TCPSocket::~TCPSocket() {
+    UDPSocket::~UDPSocket() {
         if (this->state != State::Undefined || this->state != State::Closed)
             this->close();
     }
 
-    TCPSocket TCPSocket::Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op, int backlog) {
+    UDPSocket UDPSocket::Service(std::string address, uint16_t port, Domain dom,
+                                 ByteOrder bo, Operation op) {
         int fd;
-        struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
+        struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
         sockaddr_storage info;
 
         if ((fd = socket(addr->ai_family, addr->ai_socktype,
@@ -54,20 +54,15 @@ namespace Sockets {
             throw std::runtime_error("Error when binding socket to address");
         }
 
-        if (listen(fd, backlog)) {
-            perror("");
-            throw std::runtime_error("Error when trying to listen on socket");
-        }
-
         freeaddrinfo(addr);
 
-        return TCPSocket(fd, info, dom, State::Open, bo, op);
+        return UDPSocket(fd, info, dom, State::Open, bo, op);
     }
 
-    TCPSocket TCPSocket::Connect(std::string address, uint16_t port, Domain dom,
+    UDPSocket UDPSocket::Connect(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op) {
         int fd;
-        struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
+        struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
         sockaddr_storage info;
 
         if ((fd = socket(addr->ai_family, addr->ai_socktype,
@@ -96,40 +91,12 @@ namespace Sockets {
             }
         }
 
-        if (connect(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("");
-            throw std::runtime_error(
-                "Error when trying to connect to destination");
-        }
-
         freeaddrinfo(addr);
 
-        return TCPSocket(fd, info, dom, State::Connected, bo, op);
+        return UDPSocket(fd, info, dom, State::Open, bo, op);
     }
 
-    TCPSocket TCPSocket::accept(Operation op, int flag) {
-        int fd;
-        sockaddr_storage info;
-        socklen_t len = sizeof(struct sockaddr_in);
-
-        if (this->state != State::Open)
-            throw std::runtime_error(
-                "Cannot accept connection on a socket that is not open");
-
-        if (op == Operation::Non_blocking)
-            flag |= SOCK_NONBLOCK;
-
-        if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len,
-                            flag)) == -1) {
-            perror("");
-            throw std::runtime_error("Error on accepting connection");
-        }
-
-        return TCPSocket(fd, addr, this->domain, State::Connected,
-                         this->byteorder, op);
-    }
-
-    void TCPSocket::close() {
+    void UDPSocket::close() {
         if (this->state == State::Undefined || this->state == State::Closed)
             return;
 
@@ -142,13 +109,18 @@ namespace Sockets {
         this->state = State::Closed;
     }
 
-    size_t TCPSocket::send(const char *buf, size_t buflen) {
+    size_t UDPSocket::send(const char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
         size_t n = 0;
         ssize_t m = 0;
 
         while (n < buflen) {
-            if ((m = ::send(this->_fd, &buf[n], buflen - n, 0)) < 0) {
+            if ((m = ::sendto(this->_fd, &buf[n], buflen - n, 0,
+                              (struct sockaddr *)&this->addr,
+                              this->addr.ss_family ==
+                                      static_cast<int>(Domain::IPv4)
+                                  ? sizeof(struct sockaddr_in)
+                                  : sizeof(struct sockaddr_in6))) < 0) {
                 perror("");
                 throw std::runtime_error("Error when sending data");
             }
@@ -158,13 +130,16 @@ namespace Sockets {
         return n;
     }
 
-    size_t TCPSocket::recv(char *buf, size_t buflen) {
+    size_t UDPSocket::recv(char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
         size_t n = 0;
         ssize_t m = 0;
 
+        socklen_t len = 0;
+
         while (n < buflen) {
-            if ((m = ::recv(this->_fd, &buf[n], buflen - n, 0)) < 0) {
+            if ((m = ::recvfrom(this->_fd, &buf[n], buflen - n, 0,
+                                (struct sockaddr *)&this->addr, &len)) < 0) {
                 perror("");
                 throw std::runtime_error("Error when receiving data");
             }

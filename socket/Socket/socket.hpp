@@ -16,7 +16,7 @@ namespace Sockets {
         IPv6 = AF_INET6,
     };
     enum class Type { Undefined, Stream = SOCK_STREAM, Datagram = SOCK_DGRAM };
-    enum class State { Undefined, Closed, Open, Connected, Error, Servicing };
+    enum class State { Undefined, Closed, Connected, Open };
     enum class ByteOrder { Native, Little, Big };
     enum class Operation { Blocking, Non_blocking };
 
@@ -59,11 +59,11 @@ namespace Sockets {
               type(other->type), state(other->state),
               byteorder(other->byteorder), operation(other->operation) { }
 
-        ~Socket();
+        ~Socket() {}
 
-        void close();
-        size_t send(const char *buf, size_t buflen);
-        size_t recv(char *buf, size_t buflen);
+        virtual void close() = 0;
+        virtual size_t send(const char *buf, size_t buflen) = 0;
+        virtual size_t recv(char *buf, size_t buflen) = 0;
 
         const int &fd() { return this->_fd; }
     };
@@ -73,6 +73,12 @@ namespace Sockets {
         TCPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
                   ByteOrder by, Operation op)
             : Socket(fd, addr, dom, Type::Stream, st, by, op) { }
+
+        TCPSocket(TCPSocket &other) : Socket(other) { }
+        TCPSocket(TCPSocket &&other) : Socket(other) { }
+        TCPSocket(TCPSocket *other) : Socket(other) { }
+
+        ~TCPSocket();
 
         static TCPSocket Service(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo = ByteOrder::Native,
@@ -84,11 +90,41 @@ namespace Sockets {
                                  Operation op = Operation::Blocking);
 
         TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
+
+        void close();
+        size_t send(const char *buf, size_t buflen);
+        size_t recv(char *buf, size_t buflen);
     };
 
-    class UDPSocket : Socket { };
+    class UDPSocket : public Socket {
+      public:
+        UDPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
+                  ByteOrder by, Operation op)
+            : Socket(fd, addr, dom, Type::Datagram, st, by, op) { }
+
+        UDPSocket(UDPSocket &other) : Socket(other) { }
+        UDPSocket(UDPSocket &&other) : Socket(other) { }
+        UDPSocket(UDPSocket *other) : Socket(other) { }
+
+        ~UDPSocket();
+
+        static UDPSocket Service(std::string address, uint16_t port, Domain dom,
+                                 ByteOrder bo = ByteOrder::Native,
+                                 Operation op = Operation::Blocking);
+
+        static UDPSocket Connect(std::string address, uint16_t port, Domain dom,
+                                 ByteOrder bo = ByteOrder::Native,
+                                 Operation op = Operation::Blocking);
+
+        UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
+
+        void close();
+        size_t send(const char *buf, size_t buflen);
+        size_t recv(char *buf, size_t buflen);
+    };
 
     class TLSSocket : public TCPSocket { };
+    class DTLSSocket : public UDPSocket { };
 
     class SocketStream {
       public:

@@ -5,6 +5,7 @@ target_sources(
         PRIVATE
         socket.cpp
         tcpsocket.cpp
+        udpsocket.cpp
 )
 
 # target_sources_test(
