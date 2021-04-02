@@ -4,6 +4,6 @@ A simple git repo for socket development in C++ without the need for a huge amou
 
 ## Examples
 
-### [Example 0](https://github.com/ohunter/Sockets/examples/0)
+### [Example 0](https://github.com/ohunter/Sockets/tree/master/examples/0)
 
 This example is a TCP echo server which dies after connecting and sending one message.
