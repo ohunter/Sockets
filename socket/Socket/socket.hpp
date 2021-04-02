@@ -125,10 +125,4 @@ namespace Sockets {
 
     class TLSSocket : public TCPSocket { };
     class DTLSSocket : public UDPSocket { };
-
-    class SocketStream {
-      public:
-        SocketStream(Socket &s);
-        SocketStream(Socket *s);
-    };
 } // namespace Sockets
