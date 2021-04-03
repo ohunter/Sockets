@@ -113,8 +113,8 @@ namespace Sockets {
         TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
         void close() override;
-        size_t send(const char *buf, size_t buflen);
-        size_t recv(char *buf, size_t buflen);
+        size_t send(const char *buf, size_t buflen) override;
+        size_t recv(char *buf, size_t buflen) override;
     };
 
     /**
@@ -147,8 +147,8 @@ namespace Sockets {
         UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
         void close() override;
-        size_t send(const char *buf, size_t buflen);
-        size_t recv(char *buf, size_t buflen);
+        size_t send(const char *buf, size_t buflen) override;
+        size_t recv(char *buf, size_t buflen) override;
     };
 
     /**
