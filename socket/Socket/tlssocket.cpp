@@ -13,22 +13,17 @@
 
 namespace Sockets {
 
-    TLSSocket::~TLSSocket() {}
+    TLSSocket::~TLSSocket() { }
 
-    TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx)
-        : TCPSocket(tcp) {
+    TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating TLS connection");
         }
-
-        std::cout << "here 0:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
 
         if (SSL_set_fd(this->ssl, this->fd()) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
                                      "descriptor to TLS connection");
         }
-
-        std::cout << "here 1:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
     }
 
     TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
@@ -46,7 +41,7 @@ namespace Sockets {
                                  SSL_CTX *ctx, Domain dom, ByteOrder bo,
                                  Operation op, int backlog) {
         auto tcp = TCPSocket::Service(address, port, dom, bo, op, backlog);
-        std::cout << "here 2:\t" << valid_fd(tcp.fd()) << "\t" << tcp.fd() << std::endl;
+
         return TLSSocket(tcp, ctx);
     }
 
@@ -54,14 +49,14 @@ namespace Sockets {
                                  SSL_CTX *ctx, Domain dom, ByteOrder bo,
                                  Operation op) {
         auto tcp = TCPSocket::Connect(address, port, dom, bo, op);
-        std::cout << "here 3:\t" << valid_fd(tcp.fd()) << "\t" << tcp.fd() << std::endl;
+
         return TLSSocket(tcp, ctx);
     }
 
     TLSSocket TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
         auto tcp =
             TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
-        std::cout << "here 4:\t" << valid_fd(tcp.fd()) << "\t" << tcp.fd() << std::endl;
+
         TLSSocket out(tcp, ctx);
 
         switch (SSL_accept(out.ssl)) {
@@ -90,7 +85,7 @@ namespace Sockets {
     }
 
     void TLSSocket::close() {
-        std::cout << "here 15:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
+
         if (this->state != State::Undefined || this->state != State::Closed)
             SSL_free(this->ssl);
 

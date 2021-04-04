@@ -26,8 +26,6 @@ namespace Sockets {
             throw std::runtime_error("Error when establishing socket");
         }
 
-        std::cout << "here 5:\t" << valid_fd(fd) << "\t" << fd << std::endl;
-
         std::memset(&info, 0, sizeof(sockaddr_storage));
 
         switch (dom) {
@@ -53,14 +51,10 @@ namespace Sockets {
             throw std::runtime_error("Error when binding socket to address");
         }
 
-        std::cout << "here 6:\t" << valid_fd(fd) << "\t" << fd << std::endl;
-
         if (listen(fd, backlog)) {
             perror("");
             throw std::runtime_error("Error when trying to listen on socket");
         }
-
-        std::cout << "here 7:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         freeaddrinfo(addr);
 
@@ -78,8 +72,6 @@ namespace Sockets {
             perror("");
             throw std::runtime_error("Error when establishing socket");
         }
-
-        std::cout << "here 8:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         std::memset(&info, 0, sizeof(sockaddr_storage));
 
@@ -101,15 +93,11 @@ namespace Sockets {
             }
         }
 
-        std::cout << "here 9:\t" << valid_fd(fd) << "\t" << fd << std::endl;
-
         if (connect(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
             perror("");
             throw std::runtime_error(
                 "Error when trying to connect to destination");
         }
-
-        std::cout << "here 10:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         freeaddrinfo(addr);
 
@@ -128,24 +116,17 @@ namespace Sockets {
         if (op == Operation::Non_blocking)
             flag |= SOCK_NONBLOCK;
 
-        std::cout << "here 11:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
-
         if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len,
                             flag)) == -1) {
             perror("");
             throw std::runtime_error("Error on accepting connection");
         }
 
-        std::cout << "here 12:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
-        std::cout << "here 13:\t" << valid_fd(fd) << "\t" << fd << std::endl;
-
         return TCPSocket(fd, addr, this->domain, State::Connected,
                          this->byteorder, op);
     }
 
-    void TCPSocket::close() {
-        Socket::close();
-    }
+    void TCPSocket::close() { Socket::close(); }
 
     size_t TCPSocket::send(const char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);

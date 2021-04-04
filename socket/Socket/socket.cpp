@@ -61,12 +61,11 @@ namespace Sockets {
     }
 
     Socket::Socket(Socket &other) {
-        std::cout << "here 17:\t" << valid_fd(other.fd()) << "\t" << other.fd() << std::endl;
-        if ((this->_fd = dup(this->fd())) == -1) {
+
+        if ((this->_fd = dup(other.fd())) == -1) {
             perror("");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
-        std::cout << "here 20:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
 
         this->addr = other.addr;
         this->domain = other.domain;
@@ -77,12 +76,11 @@ namespace Sockets {
     }
 
     Socket::Socket(Socket &&other) {
-        std::cout << "here 18:\t" << valid_fd(other.fd()) << "\t" << other.fd() << std::endl;
-        if ((this->_fd = dup(this->fd())) == -1) {
+
+        if ((this->_fd = dup(other.fd())) == -1) {
             perror("");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
-        std::cout << "here 21:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
 
         this->addr = other.addr;
         this->domain = other.domain;
@@ -93,12 +91,11 @@ namespace Sockets {
     }
 
     Socket::Socket(Socket *other) {
-        std::cout << "here 19:\t" << valid_fd(other->fd()) << "\t" << other->fd() << std::endl;
-        if ((this->_fd = dup(this->fd())) == -1) {
+
+        if ((this->_fd = dup(other->fd())) == -1) {
             perror("");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
-        std::cout << "here 22:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
 
         this->addr = other->addr;
         this->domain = other->domain;
@@ -112,7 +109,7 @@ namespace Sockets {
         if (!valid_fd(this->_fd))
             return;
 
-        if (::close(this->_fd) == -1){
+        if (::close(this->_fd) == -1) {
             perror("Error when closing file descriptor");
         }
     }

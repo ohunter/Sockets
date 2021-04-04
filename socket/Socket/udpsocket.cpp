@@ -12,7 +12,7 @@
 
 namespace Sockets {
 
-    UDPSocket::~UDPSocket() {}
+    UDPSocket::~UDPSocket() { }
 
     UDPSocket UDPSocket::Service(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op) {
@@ -93,9 +93,7 @@ namespace Sockets {
         return UDPSocket(fd, info, dom, State::Open, bo, op);
     }
 
-    void UDPSocket::close() {
-        Socket::close();
-    }
+    void UDPSocket::close() { Socket::close(); }
 
     size_t UDPSocket::send(const char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
