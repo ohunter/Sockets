@@ -1,1 +1,7 @@
+# Stuff to ignore
 **/build/*
+examples/certificates/*
+
+# Stuff to force include
+!examples/certificates/*.md
+!examples/certificates/*.sh
