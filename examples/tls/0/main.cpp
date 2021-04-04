@@ -4,13 +4,12 @@
 #include <string>
 #include <thread>
 
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-
 #include <Sockets/socket.hpp>
 
+#include "../tls.hpp"
+
 void server(std::string address, uint16_t port) {
-    SSL_CTX *ctx = SSL_CTX_new(SSLv23_server_method());
+    SSL_CTX *ctx = setup_server_ctx();
 
     size_t n;
     char buf[256] = {0};
@@ -18,8 +17,14 @@ void server(std::string address, uint16_t port) {
     auto sock =
         Sockets::TLSSocket::Service(address, port, ctx, Sockets::Domain::IPv4);
 
+    std::cout << "here 14:\t" << valid_fd(sock.fd()) << "\t" << sock.fd()
+              << std::endl;
+
     // Accept the incoming connection
     auto connection = sock.accept(ctx);
+
+    std::cout << "here 15:\t" << valid_fd(connection.fd()) << "\t"
+              << connection.fd() << std::endl;
 
     // Read the size of the incoming message
     connection.recv(buf, 1);
@@ -42,21 +47,23 @@ void server(std::string address, uint16_t port) {
 
 int main(int argc, char *argv[]) {
     // Initialize OpenSSL
-    SSL_library_init();
-    SSL_load_error_strings();
+    setup_openssl();
 
     // Start server
-    std::thread t0(server, "127.0.0.1", 12345);
+    std::thread t0(server, "127.0.0.1", 54321);
 
     // Sleep for 1 second to let the server get to the `accept` call
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     // Initialize the SSL context
-    SSL_CTX *ctx = SSL_CTX_new(SSLv23_client_method());
+    SSL_CTX *ctx = setup_client_ctx();
 
     // Connect to the server
-    auto sock =
-        Sockets::TLSSocket::Connect("127.0.0.1", 12345, ctx, Sockets::Domain::IPv4);
+    auto sock = Sockets::TLSSocket::Connect("127.0.0.1", 54321, ctx,
+                                            Sockets::Domain::IPv4);
+
+    std::cout << "here 16:\t" << valid_fd(sock.fd()) << "\t" << sock.fd()
+              << std::endl;
 
     char buf[256] = {0};
     std::string s = "";
@@ -79,4 +86,6 @@ int main(int argc, char *argv[]) {
 
     SSL_CTX_free(ctx);
     // TODO: check if there are other things to clean up
+
+    cleanup_openssl();
 }
