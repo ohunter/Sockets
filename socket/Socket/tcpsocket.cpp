@@ -16,7 +16,7 @@ namespace Sockets {
 
     TCPSocket TCPSocket::Service(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op, int backlog) {
-        int fd;
+        int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
         sockaddr_storage info;
 
@@ -63,7 +63,7 @@ namespace Sockets {
 
     TCPSocket TCPSocket::Connect(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op) {
-        int fd;
+        int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
         sockaddr_storage info;
 
@@ -105,9 +105,9 @@ namespace Sockets {
     }
 
     TCPSocket TCPSocket::accept(Operation op, int flag) {
-        int fd;
+        int              fd;
         sockaddr_storage info;
-        socklen_t len = sizeof(struct sockaddr_in);
+        socklen_t        len = sizeof(struct sockaddr_in);
 
         if (this->state != State::Open)
             throw std::runtime_error(
@@ -130,8 +130,8 @@ namespace Sockets {
 
     size_t TCPSocket::send(const char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t n = 0;
-        ssize_t m = 0;
+        size_t                      n = 0;
+        ssize_t                     m = 0;
 
         while (n < buflen) {
             if ((m = ::send(this->_fd, &buf[n], buflen - n, 0)) < 0) {
@@ -146,8 +146,8 @@ namespace Sockets {
 
     size_t TCPSocket::recv(char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t n = 0;
-        ssize_t m = 0;
+        size_t                      n = 0;
+        ssize_t                     m = 0;
 
         while (n < buflen) {
             if ((m = ::recv(this->_fd, &buf[n], buflen - n, 0)) < 0) {

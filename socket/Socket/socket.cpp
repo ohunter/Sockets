@@ -11,16 +11,16 @@ namespace Sockets {
 
     struct addrinfo *resolve(std::string address, std::string service,
                              Domain dom, Type ty, int flags) {
-        int err;
-        struct addrinfo hints;
+        int              err;
+        struct addrinfo  hints;
         struct addrinfo *result = nullptr;
-        struct addrinfo *out = new struct addrinfo();
+        struct addrinfo *out    = new struct addrinfo();
 
         std::memset((void *)&hints, 0, sizeof(struct addrinfo));
 
-        hints.ai_family = static_cast<int>(dom);
+        hints.ai_family   = static_cast<int>(dom);
         hints.ai_socktype = static_cast<int>(ty);
-        hints.ai_flags = flags;
+        hints.ai_flags    = flags;
 
         if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints,
                                &result)) != 0) {
@@ -36,17 +36,17 @@ namespace Sockets {
 
     struct addrinfo *resolve(std::string address, uint16_t port, Domain dom,
                              Type ty, int flags) {
-        int err;
-        struct addrinfo hints;
-        struct addrinfo *result = nullptr;
-        struct addrinfo *out = new struct addrinfo();
-        std::string service = std::to_string(port);
+        int              err;
+        struct addrinfo  hints;
+        struct addrinfo *result  = nullptr;
+        struct addrinfo *out     = new struct addrinfo();
+        std::string      service = std::to_string(port);
 
         std::memset((void *)&hints, 0, sizeof(struct addrinfo));
 
-        hints.ai_family = static_cast<int>(dom);
+        hints.ai_family   = static_cast<int>(dom);
         hints.ai_socktype = static_cast<int>(ty);
-        hints.ai_flags = flags;
+        hints.ai_flags    = flags;
 
         if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints,
                                &result)) != 0) {
@@ -67,10 +67,10 @@ namespace Sockets {
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
-        this->addr = other.addr;
-        this->domain = other.domain;
-        this->type = other.type;
-        this->state = other.state;
+        this->addr      = other.addr;
+        this->domain    = other.domain;
+        this->type      = other.type;
+        this->state     = other.state;
         this->byteorder = other.byteorder;
         this->operation = other.operation;
     }
@@ -82,10 +82,10 @@ namespace Sockets {
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
-        this->addr = other.addr;
-        this->domain = other.domain;
-        this->type = other.type;
-        this->state = other.state;
+        this->addr      = other.addr;
+        this->domain    = other.domain;
+        this->type      = other.type;
+        this->state     = other.state;
         this->byteorder = other.byteorder;
         this->operation = other.operation;
     }
@@ -97,10 +97,10 @@ namespace Sockets {
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
-        this->addr = other->addr;
-        this->domain = other->domain;
-        this->type = other->type;
-        this->state = other->state;
+        this->addr      = other->addr;
+        this->domain    = other->domain;
+        this->type      = other->type;
+        this->state     = other->state;
         this->byteorder = other->byteorder;
         this->operation = other->operation;
     }
