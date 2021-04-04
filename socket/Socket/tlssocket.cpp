@@ -77,7 +77,7 @@ namespace Sockets {
             TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
         auto out = TLSSocket(tcp, ctx);
-        int m = 0;
+        int  m   = 0;
 
         if ((m = SSL_accept(out.ssl)) == 0)
             throw std::runtime_error("Graceful rejection of SSL handshake");
