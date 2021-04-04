@@ -60,4 +60,74 @@ namespace Sockets {
         return out;
     }
 
+    Socket::Socket(Socket &other) {
+        std::cout << "here 17:\t" << valid_fd(other.fd()) << "\t" << other.fd() << std::endl;
+        if ((this->_fd = dup(this->fd())) == -1) {
+            perror("");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+        std::cout << "here 20:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
+
+        this->addr = other.addr;
+        this->domain = other.domain;
+        this->type = other.type;
+        this->state = other.state;
+        this->byteorder = other.byteorder;
+        this->operation = other.operation;
+    }
+
+    Socket::Socket(Socket &&other) {
+        std::cout << "here 18:\t" << valid_fd(other.fd()) << "\t" << other.fd() << std::endl;
+        if ((this->_fd = dup(this->fd())) == -1) {
+            perror("");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+        std::cout << "here 21:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
+
+        this->addr = other.addr;
+        this->domain = other.domain;
+        this->type = other.type;
+        this->state = other.state;
+        this->byteorder = other.byteorder;
+        this->operation = other.operation;
+    }
+
+    Socket::Socket(Socket *other) {
+        std::cout << "here 19:\t" << valid_fd(other->fd()) << "\t" << other->fd() << std::endl;
+        if ((this->_fd = dup(this->fd())) == -1) {
+            perror("");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+        std::cout << "here 22:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
+
+        this->addr = other->addr;
+        this->domain = other->domain;
+        this->type = other->type;
+        this->state = other->state;
+        this->byteorder = other->byteorder;
+        this->operation = other->operation;
+    }
+
+    Socket::~Socket() {
+        if (!valid_fd(this->_fd))
+            return;
+
+        if (::close(this->_fd) == -1){
+            perror("Error when closing file descriptor");
+        }
+    }
+
+    void Socket::close() {
+        if (this->state == State::Undefined || this->state == State::Closed)
+            return;
+
+        if (shutdown(this->fd(), SHUT_RDWR) == -1 && errno != ENOTCONN)
+            perror("Non-fatal error when shutting down socket");
+
+        if (::close(this->fd()) != 0 && errno != ENOTCONN)
+            perror("Non-fatal error when closing socket");
+
+        this->state = State::Closed;
+    }
+
 } // namespace Sockets

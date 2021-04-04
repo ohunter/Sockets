@@ -4,6 +4,7 @@
 #include <unordered_map>
 
 #include <endian.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -11,7 +12,10 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
+#define valid_fd(fd) (fcntl(fd, F_GETFD) != -1 || errno != EBADF)
+
 namespace Sockets {
+
     // These enums are used to track information about what kind of socket a
     // socket object is
     enum class Domain {
@@ -61,22 +65,13 @@ namespace Sockets {
               byteorder(by), operation(op){};
 
       public:
-        Socket(Socket &other)
-            : _fd(other._fd), addr(other.addr), domain(other.domain),
-              type(other.type), state(other.state), byteorder(other.byteorder),
-              operation(other.operation) { }
-        Socket(Socket &&other)
-            : _fd(other._fd), addr(other.addr), domain(other.domain),
-              type(other.type), state(other.state), byteorder(other.byteorder),
-              operation(other.operation) { }
-        Socket(Socket *other)
-            : _fd(other->_fd), addr(other->addr), domain(other->domain),
-              type(other->type), state(other->state),
-              byteorder(other->byteorder), operation(other->operation) { }
+        Socket(Socket &other);
+        Socket(Socket &&other);
+        Socket(Socket *other);
 
-        ~Socket() { }
+        ~Socket();
 
-        virtual void close() = 0;
+        void close();
         virtual size_t send(const char *buf, size_t buflen) = 0;
         virtual size_t recv(char *buf, size_t buflen) = 0;
 
@@ -112,7 +107,7 @@ namespace Sockets {
 
         TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
-        void close() override;
+        void close();
         size_t send(const char *buf, size_t buflen) override;
         size_t recv(char *buf, size_t buflen) override;
     };
@@ -146,7 +141,7 @@ namespace Sockets {
 
         UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
-        void close() override;
+        void close();
         size_t send(const char *buf, size_t buflen) override;
         size_t recv(char *buf, size_t buflen) override;
     };

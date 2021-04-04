@@ -12,10 +12,7 @@
 
 namespace Sockets {
 
-    UDPSocket::~UDPSocket() {
-        if (this->state != State::Undefined || this->state != State::Closed)
-            this->close();
-    }
+    UDPSocket::~UDPSocket() {}
 
     UDPSocket UDPSocket::Service(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op) {
@@ -97,16 +94,7 @@ namespace Sockets {
     }
 
     void UDPSocket::close() {
-        if (this->state == State::Undefined || this->state == State::Closed)
-            return;
-
-        if (shutdown(this->_fd, SHUT_RDWR) == -1 && errno != ENOTCONN)
-            perror("Non-fatal error when shutting down socket");
-
-        if (::close(this->fd()) != 0 && errno != ENOTCONN)
-            perror("Non-fatal error when closing socket");
-
-        this->state = State::Closed;
+        Socket::close();
     }
 
     size_t UDPSocket::send(const char *buf, size_t buflen) {

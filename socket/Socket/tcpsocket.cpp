@@ -12,10 +12,7 @@
 
 namespace Sockets {
 
-    TCPSocket::~TCPSocket() {
-        if (this->state != State::Undefined || this->state != State::Closed)
-            this->close();
-    }
+    TCPSocket::~TCPSocket() { }
 
     TCPSocket TCPSocket::Service(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op, int backlog) {
@@ -28,6 +25,8 @@ namespace Sockets {
             perror("");
             throw std::runtime_error("Error when establishing socket");
         }
+
+        std::cout << "here 5:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         std::memset(&info, 0, sizeof(sockaddr_storage));
 
@@ -54,10 +53,14 @@ namespace Sockets {
             throw std::runtime_error("Error when binding socket to address");
         }
 
+        std::cout << "here 6:\t" << valid_fd(fd) << "\t" << fd << std::endl;
+
         if (listen(fd, backlog)) {
             perror("");
             throw std::runtime_error("Error when trying to listen on socket");
         }
+
+        std::cout << "here 7:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         freeaddrinfo(addr);
 
@@ -75,6 +78,8 @@ namespace Sockets {
             perror("");
             throw std::runtime_error("Error when establishing socket");
         }
+
+        std::cout << "here 8:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         std::memset(&info, 0, sizeof(sockaddr_storage));
 
@@ -96,11 +101,15 @@ namespace Sockets {
             }
         }
 
+        std::cout << "here 9:\t" << valid_fd(fd) << "\t" << fd << std::endl;
+
         if (connect(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
             perror("");
             throw std::runtime_error(
                 "Error when trying to connect to destination");
         }
+
+        std::cout << "here 10:\t" << valid_fd(fd) << "\t" << fd << std::endl;
 
         freeaddrinfo(addr);
 
@@ -119,27 +128,23 @@ namespace Sockets {
         if (op == Operation::Non_blocking)
             flag |= SOCK_NONBLOCK;
 
+        std::cout << "here 11:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
+
         if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len,
                             flag)) == -1) {
             perror("");
             throw std::runtime_error("Error on accepting connection");
         }
 
+        std::cout << "here 12:\t" << valid_fd(this->fd()) << "\t" << this->fd() << std::endl;
+        std::cout << "here 13:\t" << valid_fd(fd) << "\t" << fd << std::endl;
+
         return TCPSocket(fd, addr, this->domain, State::Connected,
                          this->byteorder, op);
     }
 
     void TCPSocket::close() {
-        if (this->state == State::Undefined || this->state == State::Closed)
-            return;
-
-        if (shutdown(this->_fd, SHUT_RDWR) == -1 && errno != ENOTCONN)
-            perror("Non-fatal error when shutting down socket");
-
-        if (::close(this->fd()) != 0 && errno != ENOTCONN)
-            perror("Non-fatal error when closing socket");
-
-        this->state = State::Closed;
+        Socket::close();
     }
 
     size_t TCPSocket::send(const char *buf, size_t buflen) {
