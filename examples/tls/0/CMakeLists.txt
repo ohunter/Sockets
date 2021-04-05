@@ -14,6 +14,7 @@ find_path(
         "../../certificates/"
 )
 
+string(CONCAT CA_PATH ${CERT_PATH} "/root-ca.crt")
 string(CONCAT SERVER_CERT ${CERT_PATH} "/server.crt")
 string(CONCAT SERVER_KEY ${CERT_PATH} "/server.key")
 string(CONCAT CLIENT_CERT ${CERT_PATH} "/client.crt")
@@ -29,6 +30,7 @@ target_compile_options(
         PRIVATE
         -Wall
 
+        -DCA_PATH="${CA_PATH}"
         -DSERVER_CERT="${SERVER_CERT}"
         -DSERVER_KEY="${SERVER_KEY}"
         -DCLIENT_CERT="${CLIENT_CERT}"
