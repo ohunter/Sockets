@@ -3,10 +3,9 @@
 # The certificates built in this script are NOT safe for deployment.
 # They are just here to test functionality and have to be regenerated once per day for that very reason.
 
-
 # ROOT-CA
 # Generate a root CA
-openssl req -x509 -newkey rsa:4096 -sha256 -days 1 -nodes -keyout root-ca.key -out root-ca.crt -subj "/CN=libsock"
+openssl req -x509 -newkey rsa:4096 -sha256 -days 1 -nodes -keyout root-ca.key -out root-ca.crt -subj "/CN=test-ca"
 
 # SERVER
 # Create a certificate key

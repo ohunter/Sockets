@@ -17,23 +17,23 @@ namespace Sockets {
 
     TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
-            throw std::runtime_error("Error when creating TLS connection");
+            throw std::runtime_error("Error when creating SSL state");
         }
 
         if (SSL_set_fd(this->ssl, this->fd()) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
-                                     "descriptor to TLS connection");
+                                     "descriptor to SSL state");
         }
     }
 
     TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
-            throw std::runtime_error("Error when creating TLS connection");
+            throw std::runtime_error("Error when creating SSL state");
         }
 
         if (SSL_set_fd(this->ssl, this->fd()) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
-                                     "descriptor to TLS connection");
+                                     "descriptor to SSL state");
         }
     }
 
