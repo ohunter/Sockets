@@ -99,8 +99,16 @@ namespace Sockets {
         int m;
 
         if (this->state != State::Undefined || this->state != State::Closed) {
-            if ((m = SSL_shutdown(this->ssl)) == 0) {
 
+            // Force socket to be blocking to avoid needing another round of
+            // polling
+            if (fcntl(this->_fd, F_SETFL,
+                      fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
+                perror("");
+                throw std::runtime_error("Error when making socket blocking");
+            }
+
+            if ((m = SSL_shutdown(this->ssl)) == 0) {
             } else if (m < 0)
                 throw_ssl_error(SSL_get_error(this->ssl, m));
 
