@@ -13,37 +13,35 @@
 
 namespace Sockets {
 
+    TLSSocket::~TLSSocket() { }
+
     TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
-            throw std::runtime_error("Error when creating TLS connection");
+            throw std::runtime_error("Error when creating SSL state");
         }
 
         if (SSL_set_fd(this->ssl, this->fd()) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
-                                     "descriptor to TLS connection");
+                                     "descriptor to SSL state");
         }
     }
 
     TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
-            throw std::runtime_error("Error when creating TLS connection");
+            throw std::runtime_error("Error when creating SSL state");
         }
 
         if (SSL_set_fd(this->ssl, this->fd()) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
-                                     "descriptor to TLS connection");
+                                     "descriptor to SSL state");
         }
-    }
-
-    TLSSocket::~TLSSocket() {
-        if (this->state != State::Undefined || this->state != State::Closed)
-            this->close();
     }
 
     TLSSocket TLSSocket::Service(std::string address, uint16_t port,
                                  SSL_CTX *ctx, Domain dom, ByteOrder bo,
                                  Operation op, int backlog) {
         auto tcp = TCPSocket::Service(address, port, dom, bo, op, backlog);
+
         return TLSSocket(tcp, ctx);
     }
 
@@ -51,26 +49,40 @@ namespace Sockets {
                                  SSL_CTX *ctx, Domain dom, ByteOrder bo,
                                  Operation op) {
         auto tcp = TCPSocket::Connect(address, port, dom, bo, op);
-        return TLSSocket(tcp, ctx);
+        auto out = TLSSocket(tcp, ctx);
+        int  m   = 0;
+
+        // Start handshaking process
+        if ((m = SSL_connect(out.ssl)) != 1)
+            throw_ssl_error(SSL_get_error(out.ssl, m));
+
+        // Check if the socket received a certificate
+        X509 *cert = SSL_get_peer_certificate(out.ssl);
+
+        if (!cert)
+            throw std::runtime_error(
+                "No X509 certificate received from server");
+
+        X509_free(cert);
+
+        // Verify the received certificate
+        if (SSL_get_verify_result(out.ssl) != X509_V_OK)
+            throw std::runtime_error("Failed to verify received certificate");
+
+        return out;
     }
 
     TLSSocket TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
-        auto tcp = TCPSocket::accept(Operation::Blocking, flag ^ SOCK_NONBLOCK);
-        TLSSocket out(tcp, ctx);
+        auto tcp =
+            TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
-        switch (SSL_accept(out.ssl)) {
-        case 1:
-            // Handshake was successful
-            break;
-        case 0:
-            // Handshake was gracefully rejected
+        auto out = TLSSocket(tcp, ctx);
+        int  m   = 0;
+
+        if ((m = SSL_accept(out.ssl)) == 0)
             throw std::runtime_error("Graceful rejection of SSL handshake");
-            break;
-        default:
-            // Shit hit the fan during handshake
+        else if (m < 0)
             throw std::runtime_error("Error when performing SSL handshake");
-            break;
-        }
 
         if (op == Operation::Non_blocking)
             if (fcntl(this->fd(), F_SETFL,
@@ -84,43 +96,36 @@ namespace Sockets {
     }
 
     void TLSSocket::close() {
-        if (this->state == State::Undefined || this->state == State::Closed)
-            return;
+        int m;
+
+        if (this->state != State::Undefined || this->state != State::Closed) {
+
+            // Force socket to be blocking to avoid needing another round of
+            // polling
+            if (fcntl(this->_fd, F_SETFL,
+                      fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
+                perror("");
+                throw std::runtime_error("Error when making socket blocking");
+            }
+
+            if ((m = SSL_shutdown(this->ssl)) == 0) {
+            } else if (m < 0)
+                throw_ssl_error(SSL_get_error(this->ssl, m));
+
+            SSL_free(this->ssl);
+        }
 
         TCPSocket::close();
-
-        SSL_free(this->ssl);
     }
 
     size_t TLSSocket::send(const char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t n = 0;
-        ssize_t m = 0;
+        size_t                      n = 0;
+        ssize_t                     m = 0;
 
-        while(n < buflen)
-        {
-            if ((m = SSL_write(this->ssl, &buf[n], buflen - n)) <= 0) {
-                switch (SSL_get_error(this->ssl, m)) {
-                case SSL_ERROR_WANT_WRITE:
-                    throw ssl_error_want_write();
-                    break;
-                case SSL_ERROR_WANT_READ:
-                    throw ssl_error_want_read();
-                    break;
-                case SSL_ERROR_ZERO_RETURN:
-                    throw ssl_error_zero_return();
-                    break;
-                case SSL_ERROR_SYSCALL:
-                    throw ssl_error_syscall();
-                    break;
-                case SSL_ERROR_SSL:
-                    throw ssl_error_ssl();
-                    break;
-                default:
-                    throw ssl_error();
-                    break;
-                }
-            }
+        while (n < buflen) {
+            if ((m = SSL_write(this->ssl, &buf[n], buflen - n)) <= 0)
+                throw_ssl_error(SSL_get_error(this->ssl, m));
 
             n += m;
         }
@@ -130,32 +135,12 @@ namespace Sockets {
 
     size_t TLSSocket::recv(char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t n = 0;
-        ssize_t m = 0;
+        size_t                      n = 0;
+        ssize_t                     m = 0;
 
         while (n < buflen) {
-            if ((m = SSL_read(this->ssl, &buf[n], buflen - n)) <= 0) {
-                switch (SSL_get_error(this->ssl, m)) {
-                case SSL_ERROR_WANT_WRITE:
-                    throw ssl_error_want_write();
-                    break;
-                case SSL_ERROR_WANT_READ:
-                    throw ssl_error_want_read();
-                    break;
-                case SSL_ERROR_ZERO_RETURN:
-                    throw ssl_error_zero_return();
-                    break;
-                case SSL_ERROR_SYSCALL:
-                    throw ssl_error_syscall();
-                    break;
-                case SSL_ERROR_SSL:
-                    throw ssl_error_ssl();
-                    break;
-                default:
-                    throw ssl_error();
-                    break;
-                }
-            }
+            if ((m = SSL_read(this->ssl, &buf[n], buflen - n)) <= 0)
+                throw_ssl_error(SSL_get_error(this->ssl, m));
 
             n += m;
         }

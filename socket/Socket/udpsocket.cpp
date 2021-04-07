@@ -12,14 +12,11 @@
 
 namespace Sockets {
 
-    UDPSocket::~UDPSocket() {
-        if (this->state != State::Undefined || this->state != State::Closed)
-            this->close();
-    }
+    UDPSocket::~UDPSocket() { }
 
     UDPSocket UDPSocket::Service(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op) {
-        int fd;
+        int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
         sockaddr_storage info;
 
@@ -61,7 +58,7 @@ namespace Sockets {
 
     UDPSocket UDPSocket::Connect(std::string address, uint16_t port, Domain dom,
                                  ByteOrder bo, Operation op) {
-        int fd;
+        int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
         sockaddr_storage info;
 
@@ -96,23 +93,12 @@ namespace Sockets {
         return UDPSocket(fd, info, dom, State::Open, bo, op);
     }
 
-    void UDPSocket::close() {
-        if (this->state == State::Undefined || this->state == State::Closed)
-            return;
-
-        if (shutdown(this->_fd, SHUT_RDWR) == -1 && errno != ENOTCONN)
-            perror("Non-fatal error when shutting down socket");
-
-        if (::close(this->fd()) != 0 && errno != ENOTCONN)
-            perror("Non-fatal error when closing socket");
-
-        this->state = State::Closed;
-    }
+    void UDPSocket::close() { Socket::close(); }
 
     size_t UDPSocket::send(const char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t n = 0;
-        ssize_t m = 0;
+        size_t                      n = 0;
+        ssize_t                     m = 0;
 
         while (n < buflen) {
             if ((m = ::sendto(this->_fd, &buf[n], buflen - n, 0,
@@ -132,8 +118,8 @@ namespace Sockets {
 
     size_t UDPSocket::recv(char *buf, size_t buflen) {
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t n = 0;
-        ssize_t m = 0;
+        size_t                      n = 0;
+        ssize_t                     m = 0;
 
         socklen_t len = 0;
 

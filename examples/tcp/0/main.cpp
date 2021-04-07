@@ -8,10 +8,12 @@
 
 void server(std::string address, uint16_t port) {
     size_t n;
-    char buf[256] = {0};
+    char   buf[256] = {0};
 
     auto sock =
         Sockets::TCPSocket::Service(address, port, Sockets::Domain::IPv4);
+
+    std::cout << "Waiting\n";
 
     // Accept the incoming connection
     auto connection = sock.accept();
@@ -44,8 +46,10 @@ int main(int argc, char *argv[]) {
     auto sock =
         Sockets::TCPSocket::Connect("127.0.0.1", 12345, Sockets::Domain::IPv4);
 
-    char buf[256] = {0};
-    std::string s = "";
+    char        buf[256] = {0};
+    std::string s        = "";
+
+    std::cout << "Enter the message: \n";
 
     std::getline(std::cin, s);
     char b[] = {(char)s.size(), 0};

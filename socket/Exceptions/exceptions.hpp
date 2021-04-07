@@ -12,10 +12,10 @@ namespace Sockets {
         const char *what() const throw() { return "Unknown OpenSSL error"; }
     };
 
-    // class ssl_error_none : public ssl_error {
-    //   public:
-    //     const char *what() const throw() { return ""; }
-    // };
+    class ssl_error_none : public ssl_error {
+      public:
+        const char *what() const throw() { return ""; }
+    };
 
     class ssl_error_zero_return : public ssl_error {
       public:
@@ -89,5 +89,36 @@ namespace Sockets {
       public:
         const char *what() const throw() { return "Fatal SSL error"; }
     };
+
+    void throw_ssl_error(int err) {
+        switch (err) {
+        case SSL_ERROR_NONE:
+            throw ssl_error_none();
+        case SSL_ERROR_ZERO_RETURN:
+            throw ssl_error_zero_return();
+        case SSL_ERROR_WANT_READ:
+            throw ssl_error_want_read();
+        case SSL_ERROR_WANT_WRITE:
+            throw ssl_error_want_write();
+        case SSL_ERROR_WANT_CONNECT:
+            throw ssl_error_want_connect();
+        case SSL_ERROR_WANT_ACCEPT:
+            throw ssl_error_want_accept();
+        case SSL_ERROR_WANT_X509_LOOKUP:
+            throw ssl_error_want_x509_lookup();
+        case SSL_ERROR_WANT_ASYNC:
+            throw ssl_error_want_async();
+        case SSL_ERROR_WANT_ASYNC_JOB:
+            throw ssl_error_want_async_job();
+        case SSL_ERROR_WANT_CLIENT_HELLO_CB:
+            throw ssl_error_want_client_hello_cb();
+        case SSL_ERROR_SYSCALL:
+            throw ssl_error_syscall();
+        case SSL_ERROR_SSL:
+            throw ssl_error_ssl();
+        default:
+            throw ssl_error();
+        }
+    }
 
 } // namespace Sockets
