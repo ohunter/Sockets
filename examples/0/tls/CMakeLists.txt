@@ -11,7 +11,7 @@ find_path(
         "client.crt"
         "client.key"
         HINTS
-        "../../certificates/"
+        "../../utility/certificates/"
 )
 
 string(CONCAT CA_PATH ${CERT_PATH} "/root-ca.crt")

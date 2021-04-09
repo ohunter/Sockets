@@ -22,7 +22,8 @@ namespace Sockets {
 
         if ((fd = socket(addr->ai_family, addr->ai_socktype,
                          addr->ai_protocol)) < 0) {
-            perror("");
+            perror("TCPSocket::Service(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo, Operation op, int backlog): ");
             throw std::runtime_error("Error when establishing socket");
         }
 
@@ -40,19 +41,23 @@ namespace Sockets {
 
         if (op == Operation::Non_blocking) {
             if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("");
+                perror(
+                    "TCPSocket::Service(std::string address, uint16_t port, "
+                    "Domain dom, ByteOrder bo, Operation op, int backlog): ");
                 throw std::runtime_error(
                     "Error when making socket non-blocking");
             }
         }
 
         if (bind(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("");
+            perror("TCPSocket::Service(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo, Operation op, int backlog): ");
             throw std::runtime_error("Error when binding socket to address");
         }
 
         if (listen(fd, backlog)) {
-            perror("");
+            perror("TCPSocket::Service(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo, Operation op, int backlog): ");
             throw std::runtime_error("Error when trying to listen on socket");
         }
 
@@ -69,7 +74,8 @@ namespace Sockets {
 
         if ((fd = socket(addr->ai_family, addr->ai_socktype,
                          addr->ai_protocol)) < 0) {
-            perror("");
+            perror("TCPSocket::Connect(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo,Operation op): ");
             throw std::runtime_error("Error when establishing socket");
         }
 
@@ -87,14 +93,16 @@ namespace Sockets {
 
         if (op == Operation::Non_blocking) {
             if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("");
+                perror("TCPSocket::Connect(std::string address, uint16_t port, "
+                       "Domain dom, ByteOrder bo,Operation op): ");
                 throw std::runtime_error(
                     "Error when making socket non-blocking");
             }
         }
 
         if (connect(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("");
+            perror("TCPSocket::Connect(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo,Operation op): ");
             throw std::runtime_error(
                 "Error when trying to connect to destination");
         }
@@ -118,7 +126,7 @@ namespace Sockets {
 
         if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len,
                             flag)) == -1) {
-            perror("");
+            perror("TCPSocket::accept(Operation op, int flag): ");
             throw std::runtime_error("Error on accepting connection");
         }
 
@@ -135,7 +143,7 @@ namespace Sockets {
 
         while (n < buflen) {
             if ((m = ::send(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("");
+                perror("TCPSocket::send(const char *buf, size_t buflen): ");
                 throw std::runtime_error("Error when sending data");
             }
             n += m;
@@ -151,7 +159,7 @@ namespace Sockets {
 
         while (n < buflen) {
             if ((m = ::recv(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("");
+                perror("TCPSocket::recv(char *buf, size_t buflen): ");
                 throw std::runtime_error("Error when receiving data");
             }
             n += m;

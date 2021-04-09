@@ -87,7 +87,8 @@ namespace Sockets {
         if (op == Operation::Non_blocking)
             if (fcntl(this->fd(), F_SETFL,
                       fcntl(this->fd(), F_GETFL, 0) | O_NONBLOCK) == -1) {
-                perror("");
+                perror("TLSSocket::accept(SSL_CTX *ctx, Operation op, int "
+                       "flag): ");
                 throw std::runtime_error(
                     "Error when making socket non-blocking");
             }
@@ -104,7 +105,7 @@ namespace Sockets {
             // polling
             if (fcntl(this->_fd, F_SETFL,
                       fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
-                perror("");
+                perror("TLSSocket::close(): ");
                 throw std::runtime_error("Error when making socket blocking");
             }
 
