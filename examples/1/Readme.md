@@ -2,5 +2,5 @@
 
 This example shows how to work with the `Selectors` module in this library
 
-- [TCP](/tcp)
+- [TCP](/examples/1/tcp)
 
