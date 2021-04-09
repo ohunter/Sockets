@@ -60,40 +60,61 @@ namespace Sockets {
         return out;
     }
 
-    Socket::Socket(Socket &other) {
+    Socket::Socket(int fd, sockaddr_storage &info, Domain dom, Type ty,
+                   Operation op) {
 
-        if ((this->_fd = dup(other.fd())) == -1) {
-            perror("Socket::Socket(Socket &other): ");
-            throw std::runtime_error("Error when duplicating file descriptor");
+        if ((this->_fd = dup(fd)) < 0) {
+            perror("Socket::Socket(int, struct addrinfo &, Domain, Type, "
+                   "Operation): ");
+            throw std::runtime_error("Error when making socket non-blocking");
         }
 
-        this->addr      = other.addr;
-        this->domain    = other.domain;
-        this->type      = other.type;
-        this->state     = other.state;
-        this->byteorder = other.byteorder;
-        this->operation = other.operation;
+        this->addr      = info;
+        this->domain    = dom;
+        this->type      = ty;
+        this->operation = op;
     }
 
-    Socket::Socket(Socket &&other) {
+    Socket::Socket(struct addrinfo &info, Domain dom, Type ty, Operation op) {
 
-        if ((this->_fd = dup(other.fd())) == -1) {
-            perror("Socket::Socket(Socket &&other): ");
-            throw std::runtime_error("Error when duplicating file descriptor");
+        if ((this->_fd = socket(info.ai_family, info.ai_socktype,
+                                info.ai_protocol)) < 0) {
+            perror("Socket::Socket(struct addrinfo&, Domain, Type "
+                   ", Operation): ");
+            throw std::runtime_error("Error when establishing socket");
         }
 
-        this->addr      = other.addr;
-        this->domain    = other.domain;
-        this->type      = other.type;
-        this->state     = other.state;
-        this->byteorder = other.byteorder;
-        this->operation = other.operation;
+        std::memset(&this->addr, 0, sizeof(sockaddr_storage));
+
+        switch (dom) {
+        case Domain::IPv4:
+        case Domain::IPv6:
+            std::memcpy(&this->addr, info.ai_addr,
+                        sizeof(struct sockaddr_storage));
+            break;
+        default:
+            // TODO: Handle unix and undefined domains
+            break;
+        }
+
+        if (op == Operation::Non_blocking) {
+            if (fcntl(this->_fd, F_SETFL,
+                      fcntl(this->_fd, F_GETFL) | O_NONBLOCK) < 0) {
+                perror("Socket::Socket(struct addrinfo&, Domain, Type "
+                       ", Operation): ");
+                throw std::runtime_error(
+                    "Error when making socket non-blocking");
+            }
+        }
+
+        this->domain    = dom;
+        this->type      = ty;
+        this->operation = op;
     }
 
     Socket::Socket(Socket *other) {
-
         if ((this->_fd = dup(other->fd())) == -1) {
-            perror("Socket::Socket(Socket *other): ");
+            perror("Socket::Socket(Socket*): ");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
@@ -101,8 +122,35 @@ namespace Sockets {
         this->domain    = other->domain;
         this->type      = other->type;
         this->state     = other->state;
-        this->byteorder = other->byteorder;
         this->operation = other->operation;
+    }
+
+    Socket::Socket(Socket &other) {
+
+        if ((this->_fd = dup(other.fd())) == -1) {
+            perror("Socket::Socket(Socket&): ");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+
+        this->addr      = other.addr;
+        this->domain    = other.domain;
+        this->type      = other.type;
+        this->state     = other.state;
+        this->operation = other.operation;
+    }
+
+    Socket::Socket(Socket &&other) {
+
+        if ((this->_fd = dup(other.fd())) == -1) {
+            perror("Socket::Socket(Socket&&): ");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+
+        this->addr      = other.addr;
+        this->domain    = other.domain;
+        this->type      = other.type;
+        this->state     = other.state;
+        this->operation = other.operation;
     }
 
     Socket::~Socket() {
@@ -114,8 +162,72 @@ namespace Sockets {
         }
     }
 
+    Socket *Socket::connect(std::string address, uint16_t port, Domain dom,
+                            Type ty, Operation op, SSL_CTX *ctx) {
+        auto    addr = resolve(address, port, dom, ty);
+        Socket *sock = nullptr;
+
+        switch (ty) {
+        case Type::Stream:
+            sock = new TCPSocket(*addr, dom, op);
+            break;
+        case Type::Datagram:
+            sock = new UDPSocket(*addr, dom, op);
+            break;
+        case Type::TLS:
+            sock = new TLSSocket(*addr, dom, ctx, op);
+            break;
+        case Type::DTLS:
+            // sock = new (*addr, dom, op);
+        // break;
+        default:
+            throw std::runtime_error(
+                "Cannot instantiate socket of unknown type");
+        }
+
+        sock->connect();
+
+        freeaddrinfo(addr);
+
+        sock->state = State::Connected;
+
+        return sock;
+    }
+
+    Socket *Socket::service(std::string address, uint16_t port, Domain dom,
+                            Type ty, Operation op, int backlog, SSL_CTX *ctx) {
+        auto    addr = resolve(address, port, dom, ty);
+        Socket *sock = nullptr;
+
+        switch (ty) {
+        case Type::Stream:
+            sock = new TCPSocket(*addr, dom, op);
+            break;
+        case Type::Datagram:
+            sock = new UDPSocket(*addr, dom, op);
+            break;
+        case Type::TLS:
+            sock = new TLSSocket(*addr, dom, ctx, op);
+            break;
+        case Type::DTLS:
+            // sock = new (*addr, dom, op);
+        // break;
+        default:
+            throw std::runtime_error(
+                "Cannot instantiate socket of unknown type");
+        }
+
+        sock->service(backlog);
+
+        freeaddrinfo(addr);
+
+        sock->state = State::Open;
+
+        return sock;
+    }
+
     void Socket::close() {
-        if (this->state == State::Undefined || this->state == State::Closed)
+        if (this->state == State::Closed)
             return;
 
         if (shutdown(this->fd(), SHUT_RDWR) == -1 && errno != ENOTCONN)

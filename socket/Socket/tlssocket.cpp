@@ -15,17 +15,6 @@ namespace Sockets {
 
     TLSSocket::~TLSSocket() { }
 
-    TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
-        if ((this->ssl = SSL_new(ctx)) == NULL) {
-            throw std::runtime_error("Error when creating SSL state");
-        }
-
-        if (SSL_set_fd(this->ssl, this->fd()) == 0) {
-            throw std::runtime_error("Error when attempting to bind file "
-                                     "descriptor to SSL state");
-        }
-    }
-
     TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating SSL state");
@@ -37,27 +26,19 @@ namespace Sockets {
         }
     }
 
-    TLSSocket TLSSocket::Service(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom, Operation op,
-                                 ByteOrder bo, int backlog) {
-        auto tcp = TCPSocket::Service(address, port, dom, op, bo, backlog);
+    void TLSSocket::connect() {
+        int m;
+        if (this->state != State::Instantiated)
+            throw std::runtime_error("Cannot connect with a busy socket");
 
-        return TLSSocket(tcp, ctx);
-    }
-
-    TLSSocket TLSSocket::Connect(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom, Operation op,
-                                 ByteOrder bo) {
-        auto tcp = TCPSocket::Connect(address, port, dom, op, bo);
-        auto out = TLSSocket(tcp, ctx);
-        int  m   = 0;
+        TCPSocket::connect();
 
         // Start handshaking process
-        if ((m = SSL_connect(out.ssl)) != 1)
-            throw_ssl_error(SSL_get_error(out.ssl, m));
+        if ((m = SSL_connect(this->ssl)) != 1)
+            throw_ssl_error(SSL_get_error(this->ssl, m));
 
         // Check if the socket received a certificate
-        X509 *cert = SSL_get_peer_certificate(out.ssl);
+        X509 *cert = SSL_get_peer_certificate(this->ssl);
 
         if (!cert)
             throw std::runtime_error(
@@ -66,20 +47,20 @@ namespace Sockets {
         X509_free(cert);
 
         // Verify the received certificate
-        if (SSL_get_verify_result(out.ssl) != X509_V_OK)
+        if (SSL_get_verify_result(this->ssl) != X509_V_OK)
             throw std::runtime_error("Failed to verify received certificate");
-
-        return out;
     }
 
-    TLSSocket TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
-        auto tcp =
+    void TLSSocket::service(int backlog) { TCPSocket::service(backlog); }
+
+    TLSSocket *TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
+        TCPSocket *tcp =
             TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
-        auto out = TLSSocket(tcp, ctx);
-        int  m   = 0;
+        TLSSocket *out = new TLSSocket(tcp, ctx);
+        int        m   = 0;
 
-        if ((m = SSL_accept(out.ssl)) == 0)
+        if ((m = SSL_accept(out->ssl)) == 0)
             throw std::runtime_error("Graceful rejection of SSL handshake");
         else if (m < 0)
             throw std::runtime_error("Error when performing SSL handshake");
@@ -87,11 +68,12 @@ namespace Sockets {
         if (op == Operation::Non_blocking)
             if (fcntl(this->fd(), F_SETFL,
                       fcntl(this->fd(), F_GETFL, 0) | O_NONBLOCK) == -1) {
-                perror("TLSSocket::accept(SSL_CTX *ctx, Operation op, int "
-                       "flag): ");
+                perror("TLSSocket::accept(SSL_CTX*, Operation, int): ");
                 throw std::runtime_error(
                     "Error when making socket non-blocking");
             }
+
+        tcp->~TCPSocket();
 
         return out;
     }
@@ -99,7 +81,7 @@ namespace Sockets {
     void TLSSocket::close() {
         int m;
 
-        if (this->state != State::Undefined || this->state != State::Closed) {
+        if (this->state != State::Closed) {
 
             // Force socket to be blocking to avoid needing another round of
             // polling

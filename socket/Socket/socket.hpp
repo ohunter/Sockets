@@ -24,9 +24,14 @@ namespace Sockets {
         IPv4      = AF_INET,
         IPv6      = AF_INET6,
     };
-    enum class Type { Undefined, Stream = SOCK_STREAM, Datagram = SOCK_DGRAM };
-    enum class State { Undefined, Closed, Connected, Open };
-    enum class ByteOrder { Native, Little, Big };
+    enum class Type {
+        Undefined,
+        Stream   = SOCK_STREAM,
+        Datagram = SOCK_DGRAM,
+        TLS,
+        DTLS
+    };
+    enum class State { Instantiated, Closed, Connected, Open };
     enum class Operation { Blocking, Non_blocking };
 
     // This function are used to convert DNS resolvable names and IPs to a
@@ -47,6 +52,9 @@ namespace Sockets {
      * convenience layer between the user and the standard POSIX sockets.
      */
     class Socket {
+        virtual void connect()            = 0;
+        virtual void service(int backlog) = 0;
+
         protected:
         std::mutex       mtx;
         int              _fd;
@@ -54,22 +62,29 @@ namespace Sockets {
 
         Domain    domain    = Domain::Undefined;
         Type      type      = Type::Undefined;
-        State     state     = State::Undefined;
-        ByteOrder byteorder = ByteOrder::Native;
+        State     state     = State::Instantiated;
         Operation operation = Operation::Blocking;
 
-        Socket(int fd, sockaddr_storage addr, Domain dom, Type ty,
-               State st = State::Undefined, Operation op = Operation::Blocking,
-               ByteOrder by = ByteOrder::Native)
-            : _fd(fd), addr(addr), domain(dom), type(ty), state(st),
-              byteorder(by), operation(op){};
+        Socket(int fd, sockaddr_storage &info, Domain dom, Type ty,
+               Operation op = Operation::Blocking);
+        Socket(struct addrinfo &info, Domain dom, Type ty,
+               Operation op = Operation::Blocking);
+        Socket(Socket *other);
 
         public:
         Socket(Socket &other);
         Socket(Socket &&other);
-        Socket(Socket *other);
 
         ~Socket();
+
+        static Socket *connect(std::string address, uint16_t port, Domain dom,
+                               Type ty, Operation op, SSL_CTX *ctx = nullptr);
+
+        static Socket *service(std::string address, uint16_t port, Domain dom,
+                               Type ty, Operation op, int backlog = 100,
+                               SSL_CTX *ctx = nullptr);
+
+        virtual Socket *accept(Operation op, int flag) = 0;
 
         void           close();
         virtual size_t send(const char *buf, size_t buflen) = 0;
@@ -85,27 +100,23 @@ namespace Sockets {
      */
     class TCPSocket : public Socket {
         protected:
-        TCPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  Operation op, ByteOrder by)
-            : Socket(fd, addr, dom, Type::Stream, st, op, by) { }
+        void connect() override;
+        void service(int backlog) override;
+
+        TCPSocket(int fd, sockaddr_storage &info, Domain dom,
+                  Operation op = Operation::Blocking);
+        TCPSocket(TCPSocket *other);
 
         public:
-        TCPSocket(TCPSocket &other) : Socket(other) { }
-        TCPSocket(TCPSocket &&other) : Socket(other) { }
-        TCPSocket(TCPSocket *other) : Socket(other) { }
+        TCPSocket(struct addrinfo &info, Domain dom,
+                  Operation op = Operation::Blocking);
+        TCPSocket(TCPSocket &other);
+        TCPSocket(TCPSocket &&other);
 
         ~TCPSocket();
 
-        static TCPSocket Service(std::string address, uint16_t port, Domain dom,
-                                 Operation op      = Operation::Blocking,
-                                 ByteOrder bo      = ByteOrder::Native,
-                                 int       backlog = 100);
-
-        static TCPSocket Connect(std::string address, uint16_t port, Domain dom,
-                                 Operation op = Operation::Blocking,
-                                 ByteOrder bo = ByteOrder::Native);
-
-        TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
+        TCPSocket *accept(Operation op   = Operation::Blocking,
+                          int       flag = 0) override;
 
         void   close();
         size_t send(const char *buf, size_t buflen) override;
@@ -120,26 +131,23 @@ namespace Sockets {
      */
     class UDPSocket : public Socket {
         protected:
-        UDPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  Operation op, ByteOrder by)
-            : Socket(fd, addr, dom, Type::Datagram, st, op, by) { }
+        void connect() override;
+        void service(int backlog) override;
+
+        UDPSocket(int fd, sockaddr_storage &info, Domain dom,
+                  Operation op = Operation::Blocking);
+        UDPSocket(UDPSocket *other);
 
         public:
-        UDPSocket(UDPSocket &other) : Socket(other) { }
-        UDPSocket(UDPSocket &&other) : Socket(other) { }
-        UDPSocket(UDPSocket *other) : Socket(other) { }
+        UDPSocket(struct addrinfo &info, Domain dom,
+                  Operation op = Operation::Blocking);
+        UDPSocket(UDPSocket &other);
+        UDPSocket(UDPSocket &&other);
 
         ~UDPSocket();
 
-        static UDPSocket Service(std::string address, uint16_t port, Domain dom,
-                                 Operation op = Operation::Blocking,
-                                 ByteOrder bo = ByteOrder::Native);
-
-        static UDPSocket Connect(std::string address, uint16_t port, Domain dom,
-                                 Operation op = Operation::Blocking,
-                                 ByteOrder bo = ByteOrder::Native);
-
-        UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
+        UDPSocket *accept(Operation op   = Operation::Blocking,
+                          int       flag = 0) override;
 
         void   close();
         size_t send(const char *buf, size_t buflen) override;
@@ -161,33 +169,21 @@ namespace Sockets {
         SSL *ssl = nullptr;
 
         protected:
-        TLSSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  Operation op, ByteOrder by)
-            : TCPSocket(fd, addr, dom, st, op, by) { }
-
-        TLSSocket(TCPSocket &tcp, SSL_CTX *ctx);
         TLSSocket(TCPSocket *tcp, SSL_CTX *ctx);
 
+        void connect();
+        void service(int backlog);
+
         public:
-        TLSSocket(TLSSocket &other) : TCPSocket(other) { }
-        TLSSocket(TLSSocket &&other) : TCPSocket(other) { }
-        TLSSocket(TLSSocket *other) : TCPSocket(other) { }
+        TLSSocket(struct addrinfo &info, Domain dom, SSL_CTX *ctx,
+                  Operation op = Operation::Blocking);
+        TLSSocket(TLSSocket &other);
+        TLSSocket(TLSSocket &&other);
 
         ~TLSSocket();
 
-        static TLSSocket Service(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom,
-                                 Operation op      = Operation::Blocking,
-                                 ByteOrder bo      = ByteOrder::Native,
-                                 int       backlog = 100);
-
-        static TLSSocket Connect(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom,
-                                 Operation op = Operation::Blocking,
-                                 ByteOrder bo = ByteOrder::Native);
-
-        TLSSocket accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
-                         int flag = 0);
+        TLSSocket *accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
+                          int flag = 0);
 
         void   close();
         size_t send(const char *buf, size_t buflen);
