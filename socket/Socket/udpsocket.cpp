@@ -15,7 +15,7 @@ namespace Sockets {
     UDPSocket::~UDPSocket() { }
 
     UDPSocket UDPSocket::Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op) {
+                                 Operation op, ByteOrder bo) {
         int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
         sockaddr_storage info;
@@ -56,11 +56,11 @@ namespace Sockets {
 
         freeaddrinfo(addr);
 
-        return UDPSocket(fd, info, dom, State::Open, bo, op);
+        return UDPSocket(fd, info, dom, State::Open, op, bo);
     }
 
     UDPSocket UDPSocket::Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op) {
+                                 Operation op, ByteOrder bo) {
         int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
         sockaddr_storage info;
@@ -95,7 +95,7 @@ namespace Sockets {
 
         freeaddrinfo(addr);
 
-        return UDPSocket(fd, info, dom, State::Open, bo, op);
+        return UDPSocket(fd, info, dom, State::Open, op, bo);
     }
 
     void UDPSocket::close() { Socket::close(); }

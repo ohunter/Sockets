@@ -15,7 +15,7 @@ namespace Sockets {
     TCPSocket::~TCPSocket() { }
 
     TCPSocket TCPSocket::Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op, int backlog) {
+                                 Operation op, ByteOrder bo, int backlog) {
         int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
         sockaddr_storage info;
@@ -67,7 +67,7 @@ namespace Sockets {
     }
 
     TCPSocket TCPSocket::Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op) {
+                                 Operation op, ByteOrder bo) {
         int              fd;
         struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
         sockaddr_storage info;
@@ -109,7 +109,7 @@ namespace Sockets {
 
         freeaddrinfo(addr);
 
-        return TCPSocket(fd, info, dom, State::Connected, bo, op);
+        return TCPSocket(fd, info, dom, State::Connected, op, bo);
     }
 
     TCPSocket TCPSocket::accept(Operation op, int flag) {
@@ -130,8 +130,8 @@ namespace Sockets {
             throw std::runtime_error("Error on accepting connection");
         }
 
-        return TCPSocket(fd, addr, this->domain, State::Connected,
-                         this->byteorder, op);
+        return TCPSocket(fd, addr, this->domain, State::Connected, op,
+                         this->byteorder);
     }
 
     void TCPSocket::close() { Socket::close(); }

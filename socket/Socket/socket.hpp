@@ -59,8 +59,8 @@ namespace Sockets {
         Operation operation = Operation::Blocking;
 
         Socket(int fd, sockaddr_storage addr, Domain dom, Type ty,
-               State st = State::Undefined, ByteOrder by = ByteOrder::Native,
-               Operation op = Operation::Blocking)
+               State st = State::Undefined, Operation op = Operation::Blocking,
+               ByteOrder by = ByteOrder::Native)
             : _fd(fd), addr(addr), domain(dom), type(ty), state(st),
               byteorder(by), operation(op){};
 
@@ -86,8 +86,8 @@ namespace Sockets {
     class TCPSocket : public Socket {
         protected:
         TCPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  ByteOrder by, Operation op)
-            : Socket(fd, addr, dom, Type::Stream, st, by, op) { }
+                  Operation op, ByteOrder by)
+            : Socket(fd, addr, dom, Type::Stream, st, op, by) { }
 
         public:
         TCPSocket(TCPSocket &other) : Socket(other) { }
@@ -97,13 +97,13 @@ namespace Sockets {
         ~TCPSocket();
 
         static TCPSocket Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo      = ByteOrder::Native,
                                  Operation op      = Operation::Blocking,
+                                 ByteOrder bo      = ByteOrder::Native,
                                  int       backlog = 100);
 
         static TCPSocket Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
+                                 Operation op = Operation::Blocking,
+                                 ByteOrder bo = ByteOrder::Native);
 
         TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
@@ -121,8 +121,8 @@ namespace Sockets {
     class UDPSocket : public Socket {
         protected:
         UDPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  ByteOrder by, Operation op)
-            : Socket(fd, addr, dom, Type::Datagram, st, by, op) { }
+                  Operation op, ByteOrder by)
+            : Socket(fd, addr, dom, Type::Datagram, st, op, by) { }
 
         public:
         UDPSocket(UDPSocket &other) : Socket(other) { }
@@ -132,12 +132,12 @@ namespace Sockets {
         ~UDPSocket();
 
         static UDPSocket Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
+                                 Operation op = Operation::Blocking,
+                                 ByteOrder bo = ByteOrder::Native);
 
         static UDPSocket Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
+                                 Operation op = Operation::Blocking,
+                                 ByteOrder bo = ByteOrder::Native);
 
         UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
 
@@ -162,8 +162,8 @@ namespace Sockets {
 
         protected:
         TLSSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  ByteOrder by, Operation op)
-            : TCPSocket(fd, addr, dom, st, by, op) { }
+                  Operation op, ByteOrder by)
+            : TCPSocket(fd, addr, dom, st, op, by) { }
 
         TLSSocket(TCPSocket &tcp, SSL_CTX *ctx);
         TLSSocket(TCPSocket *tcp, SSL_CTX *ctx);
@@ -177,14 +177,14 @@ namespace Sockets {
 
         static TLSSocket Service(std::string address, uint16_t port,
                                  SSL_CTX *ctx, Domain dom,
-                                 ByteOrder bo      = ByteOrder::Native,
                                  Operation op      = Operation::Blocking,
+                                 ByteOrder bo      = ByteOrder::Native,
                                  int       backlog = 100);
 
         static TLSSocket Connect(std::string address, uint16_t port,
                                  SSL_CTX *ctx, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
+                                 Operation op = Operation::Blocking,
+                                 ByteOrder bo = ByteOrder::Native);
 
         TLSSocket accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
                          int flag = 0);

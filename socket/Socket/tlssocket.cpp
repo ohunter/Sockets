@@ -38,17 +38,17 @@ namespace Sockets {
     }
 
     TLSSocket TLSSocket::Service(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom, ByteOrder bo,
-                                 Operation op, int backlog) {
-        auto tcp = TCPSocket::Service(address, port, dom, bo, op, backlog);
+                                 SSL_CTX *ctx, Domain dom, Operation op,
+                                 ByteOrder bo, int backlog) {
+        auto tcp = TCPSocket::Service(address, port, dom, op, bo, backlog);
 
         return TLSSocket(tcp, ctx);
     }
 
     TLSSocket TLSSocket::Connect(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom, ByteOrder bo,
-                                 Operation op) {
-        auto tcp = TCPSocket::Connect(address, port, dom, bo, op);
+                                 SSL_CTX *ctx, Domain dom, Operation op,
+                                 ByteOrder bo) {
+        auto tcp = TCPSocket::Connect(address, port, dom, op, bo);
         auto out = TLSSocket(tcp, ctx);
         int  m   = 0;
 
