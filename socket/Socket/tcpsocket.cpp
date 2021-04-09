@@ -55,10 +55,11 @@ namespace Sockets {
         this->state = State::Open;
     }
 
-    TCPSocket *TCPSocket::connect(std::string address, uint16_t port, Domain dom, Operation op) {
+    std::shared_ptr<TCPSocket> TCPSocket::connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op) {
         auto addr = resolve(address, port, dom, Type::Stream);
 
-        TCPSocket *sock = new TCPSocket(*addr, dom, op);
+        std::shared_ptr<TCPSocket> sock = std::make_shared<TCPSocket>(TCPSocket(*addr, dom, op));
 
         freeaddrinfo(addr);
 
@@ -66,11 +67,11 @@ namespace Sockets {
         return sock;
     }
 
-    TCPSocket *TCPSocket::service(std::string address, uint16_t port, Domain dom, Operation op,
-                                  int backlog) {
+    std::shared_ptr<TCPSocket> TCPSocket::service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op, int backlog) {
         auto addr = resolve(address, port, dom, Type::Stream);
 
-        TCPSocket *sock = new TCPSocket(*addr, dom, op);
+        std::shared_ptr<TCPSocket> sock = std::make_shared<TCPSocket>(TCPSocket(*addr, dom, op));
 
         freeaddrinfo(addr);
 
@@ -78,7 +79,7 @@ namespace Sockets {
         return sock;
     }
 
-    TCPSocket *TCPSocket::accept(Operation op, int flag) {
+    std::shared_ptr<TCPSocket> TCPSocket::accept(Operation op, int flag) {
         int              fd;
         sockaddr_storage info;
         socklen_t        len = sizeof(struct sockaddr_in);
@@ -94,8 +95,10 @@ namespace Sockets {
             throw std::runtime_error("Error on accepting connection");
         }
 
-        TCPSocket *out = new TCPSocket(fd, addr, this->domain, op);
-        out->state     = State::Connected;
+        std::shared_ptr<TCPSocket> out =
+            std::make_shared<TCPSocket>(TCPSocket(fd, addr, this->domain, op));
+        ;
+        out->state = State::Connected;
 
         // Close the accepted file descriptor as it is duplicated in the
         // constructor
@@ -137,11 +140,10 @@ namespace Sockets {
                     throw std::runtime_error("Error when receiving data");
                 }
                 break;
-            }
-            else if (m == 0){
+            } else if (m == 0) {
                 // Connection has been shut down
             }
-            
+
             n += m;
         } while (n < buflen && this->operation == Operation::Blocking);
 

@@ -15,7 +15,7 @@ namespace Sockets {
     UDPSocket::UDPSocket(int fd, sockaddr_storage &info, Domain dom, Operation op)
         : Socket(fd, info, dom, Type::Datagram, op) { }
 
-    UDPSocket::UDPSocket(UDPSocket *other) : Socket(other) { }
+    // UDPSocket::UDPSocket(std::shared_ptr<UDPSocket> other) : Socket(other) { }
 
     UDPSocket::UDPSocket(struct addrinfo &info, Domain dom, Operation op)
         : Socket(info, dom, Type::Datagram, op) { }
@@ -51,15 +51,17 @@ namespace Sockets {
         }
     }
 
-    /* UDPSocket *UDPSocket::accept(Operation op, int flag) {
+    /* std::shared_ptr<UDPSocket> UDPSocket::accept(Operation op, int flag) {
         throw std::runtime_error(
-            "UDPSocket *UDPSocket::accept(Operation, int) has not been implemented yet");
+            "std::shared_ptr<UDPSocket> UDPSocket::accept(Operation, int) has not been implemented
+    yet");
     } */
 
-    UDPSocket *UDPSocket::connect(std::string address, uint16_t port, Domain dom, Operation op) {
+    std::shared_ptr<UDPSocket> UDPSocket::connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op) {
         auto addr = resolve(address, port, dom, Type::Datagram);
 
-        UDPSocket *sock = new UDPSocket(*addr, dom, op);
+        std::shared_ptr<UDPSocket> sock = std::make_shared<UDPSocket>(UDPSocket(*addr, dom, op));
 
         freeaddrinfo(addr);
 
@@ -67,11 +69,11 @@ namespace Sockets {
         sock->state = State::Connected;
         return sock;
     }
-    UDPSocket *UDPSocket::service(std::string address, uint16_t port, Domain dom, Operation op,
-                                  int backlog) {
+    std::shared_ptr<UDPSocket> UDPSocket::service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op, int backlog) {
         auto addr = resolve(address, port, dom, Type::Datagram);
 
-        UDPSocket *sock = new UDPSocket(*addr, dom, op);
+        std::shared_ptr<UDPSocket> sock = std::make_shared<UDPSocket>(UDPSocket(*addr, dom, op));
 
         freeaddrinfo(addr);
 

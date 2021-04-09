@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 
@@ -30,13 +31,13 @@ namespace Sockets {
 
     // This function are used to convert DNS resolvable names and IPs to a
     // structure that is more suitable for the sockets
-    struct addrinfo *resolve(std::string address, std::string service,
+    struct addrinfo *resolve(std::string &address, std::string &service,
                              Domain dom = Domain::Undefined, Type ty = Type::Undefined,
                              int flags = 0);
 
     // This function are used to convert DNS resolvable names and IPs to a
     // structure that is more suitable for the sockets
-    struct addrinfo *resolve(std::string address, uint16_t port, Domain dom = Domain::Undefined,
+    struct addrinfo *resolve(std::string &address, uint16_t port, Domain dom = Domain::Undefined,
                              Type ty = Type::Undefined, int flags = 0);
 
     /**
@@ -96,12 +97,13 @@ namespace Sockets {
 
         ~TCPSocket();
 
-        static TCPSocket *connect(std::string address, uint16_t port, Domain dom,
-                                  Operation op = Operation::Blocking);
-        static TCPSocket *service(std::string address, uint16_t port, Domain dom,
-                                  Operation op = Operation::Blocking, int backlog = 100);
+        static std::shared_ptr<TCPSocket> connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op = Operation::Blocking);
+        static std::shared_ptr<TCPSocket> service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op      = Operation::Blocking,
+                                                  int       backlog = 100);
 
-        TCPSocket *accept(Operation op = Operation::Blocking, int flag = 0);
+        std::shared_ptr<TCPSocket> accept(Operation op = Operation::Blocking, int flag = 0);
 
         void   close();
         size_t send(const char *buf, size_t buflen) override;
@@ -129,10 +131,11 @@ namespace Sockets {
 
         ~UDPSocket();
 
-        static UDPSocket *connect(std::string address, uint16_t port, Domain dom,
-                                  Operation op = Operation::Blocking);
-        static UDPSocket *service(std::string address, uint16_t port, Domain dom,
-                                  Operation op = Operation::Blocking, int backlog = 100);
+        static std::shared_ptr<UDPSocket> connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op = Operation::Blocking);
+        static std::shared_ptr<UDPSocket> service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op      = Operation::Blocking,
+                                                  int       backlog = 100);
 
         void   close();
         size_t send(const char *buf, size_t buflen) override;
@@ -167,12 +170,14 @@ namespace Sockets {
 
         ~TLSSocket();
 
-        static TLSSocket *connect(std::string address, uint16_t port, Domain dom, SSL_CTX *ctx,
-                                  Operation op = Operation::Blocking);
-        static TLSSocket *service(std::string address, uint16_t port, Domain dom, SSL_CTX *ctx,
-                                  Operation op = Operation::Blocking, int backlog = 100);
+        static std::shared_ptr<TLSSocket> connect(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op = Operation::Blocking);
+        static std::shared_ptr<TLSSocket> service(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op = Operation::Blocking,
+                                                  int backlog = 100);
 
-        TLSSocket *accept(SSL_CTX *ctx, Operation op = Operation::Blocking, int flag = 0);
+        std::shared_ptr<TLSSocket> accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
+                                          int flag = 0);
 
         void   close();
         size_t send(const char *buf, size_t buflen);

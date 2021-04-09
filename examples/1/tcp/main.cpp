@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -20,10 +21,11 @@ std::string process(std::shared_ptr<Sockets::Socket> p) {
 }
 
 void server(std::string address, uint16_t port) {
+    bool state = true;
+
     // Establish the listening socket
-    std::shared_ptr<Sockets::TCPSocket> listener =
-        std::make_shared<Sockets::TCPSocket>(Sockets::TCPSocket::service(
-            address, port, Sockets::Domain::IPv4, Sockets::Operation::Non_blocking));
+    std::shared_ptr<Sockets::TCPSocket> listener = Sockets::TCPSocket::service(
+        address, port, Sockets::Domain::IPv4, Sockets::Operation::Non_blocking);
 
     // Create the polling device
     auto pd = Sockets::Poll();
@@ -33,9 +35,9 @@ void server(std::string address, uint16_t port) {
     // will only listen for new connections
     pd.enroll(listener, POLLIN);
 
-    std::cout << "Waiting\n";
+    std::cout << "Waiting for connection\n";
 
-    while (true) {
+    while (state) {
         auto activity = pd.poll();
 
         // The connections with errors
@@ -43,7 +45,8 @@ void server(std::string address, uint16_t port) {
             // Is there an issue with the listening connection
             if (it == listener) {
                 perror("server(std::string address, uint16_t port): ");
-                throw std::runtime_error("Something went wrong with the listening socket");
+                state = false;
+                break;
             } else {
                 // Close the faulty connection
                 pd.disenroll(it);
@@ -55,30 +58,52 @@ void server(std::string address, uint16_t port) {
         for (auto it : activity[1]) {
             // There is an incoming connection
             if (it == listener) {
-                pd.enroll(std::make_shared<Sockets::TCPSocket>(
-                    listener->accept(Sockets::Operation::Non_blocking)));
+                pd.enroll(listener->accept(Sockets::Operation::Non_blocking));
                 std::cout << "Accepting connection\n";
-            } else
-                std::cout << process(it) << std::endl;
+            } else {
+                auto msg = process(it);
+
+                std::cout << msg << std::endl;
+                if (!std::strncmp(msg.c_str(), "stop", 4)) {
+                    std::cout << "Stopping server" << std::endl;
+                    state = false;
+                    break;
+                }
+            }
         }
 
         // The connections able to send outgoing
         // for (auto it : activity[2]) {}
     }
+
+    listener->close();
 }
 
 int main(int argc, char *argv[]) {
     // Start server
-    std::thread t0(server, "127.0.0.1", 54321);
+    std::thread t0(server, "127.0.0.1", 12345);
 
-    // // Sleep for 1 second to let the server get to the `accept` call
-    // std::this_thread::sleep_for(std::chrono::seconds(1));
+    // Sleep for 1 second to let the server get to the `accept` call
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // // Connect to the server
-    // auto sock = Sockets::TCPSocket::connect("127.0.0.1", 12345, Sockets::Domain::IPv4);
+    std::string s;
 
-    // // Close the connection
-    // sock->close();
+    // Connect to the server
+    auto sock = Sockets::TCPSocket::connect("127.0.0.1", 12345, Sockets::Domain::IPv4);
+
+    std::cout << "Enter 'stop' to terminate connection." << std::endl;
+    while (std::getline(std::cin, s)) {
+        if (std::strncmp(s.c_str(), "stop", 4)) {
+            sock->send(s.c_str(), s.size());
+        } else {
+            std::cout << "Stopping client" << std::endl;
+            sock->send("stop", 4);
+            break;
+        }
+    }
+
+    // Close the connection
+    sock->close();
 
     t0.join();
 }

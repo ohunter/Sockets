@@ -13,7 +13,7 @@
 
 namespace Sockets {
 
-    TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
+    TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(*tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating SSL state");
         }
@@ -78,32 +78,34 @@ namespace Sockets {
 
     void TLSSocket::service(int backlog) { TCPSocket::service(backlog); }
 
-    TLSSocket *TLSSocket::connect(std::string address, uint16_t port, Domain dom, SSL_CTX *ctx,
-                                  Operation op) {
+    std::shared_ptr<TLSSocket> TLSSocket::connect(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op) {
         auto tcp = TCPSocket::connect(address, port, dom, op);
 
-        TLSSocket *sock = new TLSSocket(tcp, ctx);
+        std::shared_ptr<TLSSocket> sock = std::make_shared<TLSSocket>(TLSSocket(tcp.get(), ctx));
 
         sock->connect();
 
         return sock;
     }
-    TLSSocket *TLSSocket::service(std::string address, uint16_t port, Domain dom, SSL_CTX *ctx,
-                                  Operation op, int backlog) {
+    std::shared_ptr<TLSSocket> TLSSocket::service(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op, int backlog) {
         auto tcp = TCPSocket::service(address, port, dom, op);
 
-        TLSSocket *sock = new TLSSocket(tcp, ctx);
+        std::shared_ptr<TLSSocket> sock = std::make_shared<TLSSocket>(TLSSocket(tcp.get(), ctx));
 
         sock->service(backlog);
 
         return sock;
     }
 
-    TLSSocket *TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
-        TCPSocket *tcp = TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
+    std::shared_ptr<TLSSocket> TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
+        std::shared_ptr<TCPSocket> tcp =
+            TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
-        TLSSocket *out = new TLSSocket(tcp, ctx);
-        int        m   = 0;
+        std::shared_ptr<TLSSocket> out = std::make_shared<TLSSocket>(TLSSocket(tcp.get(), ctx));
+
+        int m = 0;
 
         if ((m = SSL_accept(out->ssl)) == 0)
             throw std::runtime_error("Graceful rejection of SSL handshake");
@@ -115,8 +117,6 @@ namespace Sockets {
                 perror("TLSSocket::accept(SSL_CTX*, Operation, int): ");
                 throw std::runtime_error("Error when making socket non-blocking");
             }
-
-        tcp->~TCPSocket();
 
         return out;
     }

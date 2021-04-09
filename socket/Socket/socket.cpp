@@ -9,52 +9,44 @@
 
 namespace Sockets {
 
-    struct addrinfo *resolve(std::string address, std::string service, Domain dom, Type ty,
+    struct addrinfo *resolve(std::string &address, std::string &service, Domain dom, Type ty,
                              int flags) {
+        char *           addr = nullptr;
+        char *           serv = nullptr;
         int              err;
         struct addrinfo  hints;
         struct addrinfo *result = nullptr;
         struct addrinfo *out    = new struct addrinfo();
 
-        std::memset((void *)&hints, 0, sizeof(struct addrinfo));
+        std::memset(&hints, 0, sizeof(struct addrinfo));
 
         hints.ai_family   = static_cast<int>(dom);
         hints.ai_socktype = static_cast<int>(ty);
         hints.ai_flags    = flags;
 
-        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints, &result)) != 0) {
+        addr = new char[address.size() + 1];
+        serv = new char[service.size() + 1];
+
+        std::copy(address.begin(), address.end(), addr);
+        std::copy(service.begin(), service.end(), serv);
+
+        if ((err = getaddrinfo(addr, serv, &hints, &result)) != 0) {
             throw std::runtime_error(std::string(gai_strerror(err)));
         }
 
         std::memcpy(out, result, sizeof(struct addrinfo));
         freeaddrinfo(result);
 
-        out->ai_next = nullptr;
+        delete[] addr;
+        delete[] serv;
+
+        out->ai_next = NULL;
         return out;
     }
 
-    struct addrinfo *resolve(std::string address, uint16_t port, Domain dom, Type ty, int flags) {
-        int              err;
-        struct addrinfo  hints;
-        struct addrinfo *result  = nullptr;
-        struct addrinfo *out     = new struct addrinfo();
-        std::string      service = std::to_string(port);
-
-        std::memset((void *)&hints, 0, sizeof(struct addrinfo));
-
-        hints.ai_family   = static_cast<int>(dom);
-        hints.ai_socktype = static_cast<int>(ty);
-        hints.ai_flags    = flags;
-
-        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints, &result)) != 0) {
-            throw std::runtime_error(std::string(gai_strerror(err)));
-        }
-
-        std::memcpy(out, result, sizeof(struct addrinfo));
-        freeaddrinfo(result);
-
-        out->ai_next = nullptr;
-        return out;
+    struct addrinfo *resolve(std::string &address, uint16_t port, Domain dom, Type ty, int flags) {
+        auto tmp = std::to_string(port);
+        return resolve(address, tmp, dom, ty, flags);
     }
 
     Socket::Socket(int fd, sockaddr_storage &info, Domain dom, Type ty, Operation op) {
@@ -83,8 +75,10 @@ namespace Sockets {
 
         switch (dom) {
         case Domain::IPv4:
+            std::memcpy(&this->addr, info.ai_addr, sizeof(sockaddr_storage));
+            break;
         case Domain::IPv6:
-            std::memcpy(&this->addr, info.ai_addr, sizeof(struct sockaddr_storage));
+            std::memcpy(&this->addr, info.ai_addr, sizeof(sockaddr_storage));
             break;
         default:
             // TODO: Handle unix and undefined domains
