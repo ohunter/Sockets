@@ -129,12 +129,19 @@ namespace Sockets {
         ssize_t                     m = 0;
 
         do {
-            if ((m = ::recv(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("TCPSocket::recv(char *, size_t): ");
-                throw std::runtime_error("Error when receiving data");
-            } else if (m == 0) {
+            m = ::recv(this->_fd, &buf[n], buflen - n, 0);
+
+            if (m < 0) {
+                if (this->operation == Operation::Blocking || errno != EAGAIN) {
+                    perror("TCPSocket::recv(char *, size_t): ");
+                    throw std::runtime_error("Error when receiving data");
+                }
+                break;
+            }
+            else if (m == 0){
                 // Connection has been shut down
             }
+            
             n += m;
         } while (n < buflen && this->operation == Operation::Blocking);
 
