@@ -22,7 +22,8 @@ namespace Sockets {
 
         if ((fd = socket(addr->ai_family, addr->ai_socktype,
                          addr->ai_protocol)) < 0) {
-            perror("");
+            perror("UDPSocket::Service(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo, Operation op): ");
             throw std::runtime_error("Error when establishing socket");
         }
 
@@ -40,14 +41,16 @@ namespace Sockets {
 
         if (op == Operation::Non_blocking) {
             if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("");
+                perror("UDPSocket::Service(std::string address, uint16_t port, "
+                       "Domain dom, ByteOrder bo, Operation op): ");
                 throw std::runtime_error(
                     "Error when making socket non-blocking");
             }
         }
 
         if (bind(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("");
+            perror("UDPSocket::Service(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo, Operation op): ");
             throw std::runtime_error("Error when binding socket to address");
         }
 
@@ -64,7 +67,8 @@ namespace Sockets {
 
         if ((fd = socket(addr->ai_family, addr->ai_socktype,
                          addr->ai_protocol)) < 0) {
-            perror("");
+            perror("UDPSocket::Connect(std::string address, uint16_t port, "
+                   "Domain dom, ByteOrder bo, Operation op): ");
             throw std::runtime_error("Error when establishing socket");
         }
 
@@ -82,7 +86,8 @@ namespace Sockets {
 
         if (op == Operation::Non_blocking) {
             if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("");
+                perror("UDPSocket::Connect(std::string address, uint16_t port, "
+                       "Domain dom, ByteOrder bo, Operation op): ");
                 throw std::runtime_error(
                     "Error when making socket non-blocking");
             }
@@ -107,7 +112,7 @@ namespace Sockets {
                                       static_cast<int>(Domain::IPv4)
                                   ? sizeof(struct sockaddr_in)
                                   : sizeof(struct sockaddr_in6))) < 0) {
-                perror("");
+                perror("UDPSocket::send(const char *buf, size_t buflen): ");
                 throw std::runtime_error("Error when sending data");
             }
             n += m;
@@ -126,7 +131,7 @@ namespace Sockets {
         while (n < buflen) {
             if ((m = ::recvfrom(this->_fd, &buf[n], buflen - n, 0,
                                 (struct sockaddr *)&this->addr, &len)) < 0) {
-                perror("");
+                perror("UDPSocket::recv(char *buf, size_t buflen): ");
                 throw std::runtime_error("Error when receiving data");
             }
             n += m;

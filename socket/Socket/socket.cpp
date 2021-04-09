@@ -63,7 +63,7 @@ namespace Sockets {
     Socket::Socket(Socket &other) {
 
         if ((this->_fd = dup(other.fd())) == -1) {
-            perror("");
+            perror("Socket::Socket(Socket &other): ");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
@@ -78,7 +78,7 @@ namespace Sockets {
     Socket::Socket(Socket &&other) {
 
         if ((this->_fd = dup(other.fd())) == -1) {
-            perror("");
+            perror("Socket::Socket(Socket &&other): ");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
@@ -93,7 +93,7 @@ namespace Sockets {
     Socket::Socket(Socket *other) {
 
         if ((this->_fd = dup(other->fd())) == -1) {
-            perror("");
+            perror("Socket::Socket(Socket *other): ");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
