@@ -63,7 +63,7 @@ namespace Sockets {
 
         freeaddrinfo(addr);
 
-        return TCPSocket(fd, info, dom, State::Open, bo, op);
+        return TCPSocket(fd, info, dom, State::Open, op, bo);
     }
 
     TCPSocket TCPSocket::Connect(std::string address, uint16_t port, Domain dom,
