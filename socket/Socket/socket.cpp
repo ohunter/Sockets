@@ -9,8 +9,8 @@
 
 namespace Sockets {
 
-    struct addrinfo *resolve(std::string address, std::string service,
-                             Domain dom, Type ty, int flags) {
+    struct addrinfo *resolve(std::string address, std::string service, Domain dom, Type ty,
+                             int flags) {
         int              err;
         struct addrinfo  hints;
         struct addrinfo *result = nullptr;
@@ -22,8 +22,7 @@ namespace Sockets {
         hints.ai_socktype = static_cast<int>(ty);
         hints.ai_flags    = flags;
 
-        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints,
-                               &result)) != 0) {
+        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints, &result)) != 0) {
             throw std::runtime_error(std::string(gai_strerror(err)));
         }
 
@@ -34,8 +33,7 @@ namespace Sockets {
         return out;
     }
 
-    struct addrinfo *resolve(std::string address, uint16_t port, Domain dom,
-                             Type ty, int flags) {
+    struct addrinfo *resolve(std::string address, uint16_t port, Domain dom, Type ty, int flags) {
         int              err;
         struct addrinfo  hints;
         struct addrinfo *result  = nullptr;
@@ -48,8 +46,7 @@ namespace Sockets {
         hints.ai_socktype = static_cast<int>(ty);
         hints.ai_flags    = flags;
 
-        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints,
-                               &result)) != 0) {
+        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints, &result)) != 0) {
             throw std::runtime_error(std::string(gai_strerror(err)));
         }
 
@@ -60,8 +57,7 @@ namespace Sockets {
         return out;
     }
 
-    Socket::Socket(int fd, sockaddr_storage &info, Domain dom, Type ty,
-                   Operation op) {
+    Socket::Socket(int fd, sockaddr_storage &info, Domain dom, Type ty, Operation op) {
 
         if ((this->_fd = dup(fd)) < 0) {
             perror("Socket::Socket(int, struct addrinfo &, Domain, Type, "
@@ -77,8 +73,7 @@ namespace Sockets {
 
     Socket::Socket(struct addrinfo &info, Domain dom, Type ty, Operation op) {
 
-        if ((this->_fd = socket(info.ai_family, info.ai_socktype,
-                                info.ai_protocol)) < 0) {
+        if ((this->_fd = socket(info.ai_family, info.ai_socktype, info.ai_protocol)) < 0) {
             perror("Socket::Socket(struct addrinfo&, Domain, Type "
                    ", Operation): ");
             throw std::runtime_error("Error when establishing socket");
@@ -89,8 +84,7 @@ namespace Sockets {
         switch (dom) {
         case Domain::IPv4:
         case Domain::IPv6:
-            std::memcpy(&this->addr, info.ai_addr,
-                        sizeof(struct sockaddr_storage));
+            std::memcpy(&this->addr, info.ai_addr, sizeof(struct sockaddr_storage));
             break;
         default:
             // TODO: Handle unix and undefined domains
@@ -98,12 +92,10 @@ namespace Sockets {
         }
 
         if (op == Operation::Non_blocking) {
-            if (fcntl(this->_fd, F_SETFL,
-                      fcntl(this->_fd, F_GETFL) | O_NONBLOCK) < 0) {
+            if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL) | O_NONBLOCK) < 0) {
                 perror("Socket::Socket(struct addrinfo&, Domain, Type "
                        ", Operation): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
+                throw std::runtime_error("Error when making socket non-blocking");
             }
         }
 
@@ -140,7 +132,6 @@ namespace Sockets {
     }
 
     Socket::Socket(Socket &&other) {
-
         if ((this->_fd = dup(other.fd())) == -1) {
             perror("Socket::Socket(Socket&&): ");
             throw std::runtime_error("Error when duplicating file descriptor");
@@ -160,70 +151,6 @@ namespace Sockets {
         if (::close(this->_fd) == -1) {
             perror("Error when closing file descriptor");
         }
-    }
-
-    Socket *Socket::connect(std::string address, uint16_t port, Domain dom,
-                            Type ty, Operation op, SSL_CTX *ctx) {
-        auto    addr = resolve(address, port, dom, ty);
-        Socket *sock = nullptr;
-
-        switch (ty) {
-        case Type::Stream:
-            sock = new TCPSocket(*addr, dom, op);
-            break;
-        case Type::Datagram:
-            sock = new UDPSocket(*addr, dom, op);
-            break;
-        case Type::TLS:
-            sock = new TLSSocket(*addr, dom, ctx, op);
-            break;
-        case Type::DTLS:
-            // sock = new (*addr, dom, op);
-        // break;
-        default:
-            throw std::runtime_error(
-                "Cannot instantiate socket of unknown type");
-        }
-
-        sock->connect();
-
-        freeaddrinfo(addr);
-
-        sock->state = State::Connected;
-
-        return sock;
-    }
-
-    Socket *Socket::service(std::string address, uint16_t port, Domain dom,
-                            Type ty, Operation op, int backlog, SSL_CTX *ctx) {
-        auto    addr = resolve(address, port, dom, ty);
-        Socket *sock = nullptr;
-
-        switch (ty) {
-        case Type::Stream:
-            sock = new TCPSocket(*addr, dom, op);
-            break;
-        case Type::Datagram:
-            sock = new UDPSocket(*addr, dom, op);
-            break;
-        case Type::TLS:
-            sock = new TLSSocket(*addr, dom, ctx, op);
-            break;
-        case Type::DTLS:
-            // sock = new (*addr, dom, op);
-        // break;
-        default:
-            throw std::runtime_error(
-                "Cannot instantiate socket of unknown type");
-        }
-
-        sock->service(backlog);
-
-        freeaddrinfo(addr);
-
-        sock->state = State::Open;
-
-        return sock;
     }
 
     void Socket::close() {

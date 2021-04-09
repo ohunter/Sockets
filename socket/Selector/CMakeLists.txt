@@ -4,5 +4,4 @@ target_sources(
         ${libName}
         PRIVATE
         poll.cpp
-        polldev.cpp
 )

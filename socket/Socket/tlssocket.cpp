@@ -13,18 +13,44 @@
 
 namespace Sockets {
 
-    TLSSocket::~TLSSocket() { }
-
     TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating SSL state");
         }
 
-        if (SSL_set_fd(this->ssl, this->fd()) == 0) {
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
                                      "descriptor to SSL state");
         }
     }
+
+    TLSSocket::TLSSocket(struct addrinfo &info, Domain dom, SSL_CTX *ctx, Operation op)
+        : TCPSocket(info, dom, op) {
+        if ((this->ssl = SSL_new(ctx)) == NULL) {
+            throw std::runtime_error("Error when creating SSL state");
+        }
+
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
+            throw std::runtime_error("Error when attempting to bind file "
+                                     "descriptor to SSL state");
+        }
+    }
+
+    TLSSocket::TLSSocket(TLSSocket &other) : TCPSocket(other) {
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
+            throw std::runtime_error("Error when attempting to bind file "
+                                     "descriptor to SSL state");
+        }
+    }
+
+    TLSSocket::TLSSocket(TLSSocket &&other) : TCPSocket(other) {
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
+            throw std::runtime_error("Error when attempting to bind file "
+                                     "descriptor to SSL state");
+        }
+    }
+
+    TLSSocket::~TLSSocket() { }
 
     void TLSSocket::connect() {
         int m;
@@ -41,8 +67,7 @@ namespace Sockets {
         X509 *cert = SSL_get_peer_certificate(this->ssl);
 
         if (!cert)
-            throw std::runtime_error(
-                "No X509 certificate received from server");
+            throw std::runtime_error("No X509 certificate received from server");
 
         X509_free(cert);
 
@@ -53,9 +78,29 @@ namespace Sockets {
 
     void TLSSocket::service(int backlog) { TCPSocket::service(backlog); }
 
+    TLSSocket *TLSSocket::connect(std::string address, uint16_t port, Domain dom, SSL_CTX *ctx,
+                                  Operation op) {
+        auto tcp = TCPSocket::connect(address, port, dom, op);
+
+        TLSSocket *sock = new TLSSocket(tcp, ctx);
+
+        sock->connect();
+
+        return sock;
+    }
+    TLSSocket *TLSSocket::service(std::string address, uint16_t port, Domain dom, SSL_CTX *ctx,
+                                  Operation op, int backlog) {
+        auto tcp = TCPSocket::service(address, port, dom, op);
+
+        TLSSocket *sock = new TLSSocket(tcp, ctx);
+
+        sock->service(backlog);
+
+        return sock;
+    }
+
     TLSSocket *TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
-        TCPSocket *tcp =
-            TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
+        TCPSocket *tcp = TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
         TLSSocket *out = new TLSSocket(tcp, ctx);
         int        m   = 0;
@@ -66,11 +111,9 @@ namespace Sockets {
             throw std::runtime_error("Error when performing SSL handshake");
 
         if (op == Operation::Non_blocking)
-            if (fcntl(this->fd(), F_SETFL,
-                      fcntl(this->fd(), F_GETFL, 0) | O_NONBLOCK) == -1) {
+            if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
                 perror("TLSSocket::accept(SSL_CTX*, Operation, int): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
+                throw std::runtime_error("Error when making socket non-blocking");
             }
 
         tcp->~TCPSocket();
@@ -85,8 +128,7 @@ namespace Sockets {
 
             // Force socket to be blocking to avoid needing another round of
             // polling
-            if (fcntl(this->_fd, F_SETFL,
-                      fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
+            if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
                 perror("TLSSocket::close(): ");
                 throw std::runtime_error("Error when making socket blocking");
             }

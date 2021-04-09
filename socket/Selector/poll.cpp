@@ -2,54 +2,54 @@
 #include <algorithm>
 #include <cstring>
 
+#include "../Socket/socket.hpp"
 #include "selector.hpp"
+
 namespace Sockets {
-    Poll::Poll() { this->pfds = new struct pollfd[0]; }
+    Poll::Poll() { }
 
-    Poll::~Poll() { delete[] this->pfds; }
+    Poll::~Poll() { }
 
-    std::array<std::vector<std::reference_wrapper<Polldev>>, 3>
-    Poll::poll(int timeout) {
-        std::array<std::vector<std::reference_wrapper<Polldev>>, 3> out;
+    std::array<std::vector<std::shared_ptr<Socket>>, 3> Poll::poll(int timeout) {
+        int n = 0;
+        int i = 0;
 
-        if (::poll(this->pfds, this->devs.size(), timeout) < 0) {
-            perror("");
+        std::array<std::vector<std::shared_ptr<Socket>>, 3> out;
+
+        if ((n = ::poll(this->fds.data(), this->fds.size(), timeout)) < 0) {
+            perror("Poll::poll(int): ");
             throw std::runtime_error("Error when polling sockets");
         }
 
-        auto it_end_err = std::partition(this->devs.begin(), this->devs.end(),
-                                         Polldev::error);
-        auto it_end_inc =
-            std::partition(it_end_err, this->devs.end(), Polldev::incoming);
-        auto it_end_out =
-            std::partition(it_end_inc, this->devs.end(), Polldev::outgoing);
+        auto it_fd  = this->fds.begin();
+        auto it_dev = this->devs.begin();
+        while (i < n && it_fd != this->fds.end() && it_dev != this->devs.end()) {
+            if ((*it_fd).revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                out[0].emplace_back(*it_dev);
+                i++;
+            }
 
-        out[0] = std::vector<std::reference_wrapper<Polldev>>(
-            this->devs.begin(), it_end_err);
-        out[1] = std::vector<std::reference_wrapper<Polldev>>(it_end_err,
-                                                              it_end_inc);
-        out[2] = std::vector<std::reference_wrapper<Polldev>>(it_end_inc,
-                                                              it_end_out);
+            if ((*it_fd).revents & POLLIN) {
+                out[1].emplace_back(*it_dev);
+                i++;
+            }
+
+            if ((*it_fd).revents & POLLOUT) {
+                out[2].emplace_back(*it_dev);
+                i++;
+            }
+
+            it_fd++;
+            it_dev++;
+        }
 
         return out;
     }
 
-    void Poll::enroll(Socket *s, short event) {
-        struct pollfd *new_arr = new struct pollfd[this->devs.size() + 1];
-
-        std::memmove(new_arr, this->pfds,
-                     sizeof(struct pollfd) * this->devs.size());
-
-        delete[] this->pfds;
-
-        this->pfds = new_arr;
-
-        struct pollfd new_dev = {s->fd(), event, 0};
-
-        std::memcpy(&this->pfds[this->devs.size()], &new_dev,
-                    sizeof(struct pollfd));
-
-        this->devs.emplace_back(s, &this->pfds[this->devs.size()]);
+    void Poll::enroll(std::shared_ptr<Socket> s, short event) {
+        pollfd tmp = {s->fd(), event, 0};
+        this->fds.push_back(tmp);
+        this->devs.push_back(s);
     }
 
     void Poll::disenroll(int fd) {
@@ -57,9 +57,10 @@ namespace Sockets {
         throw std::runtime_error("Poll::disenroll(int fd) has yet to be implemented");
     }
 
-    void Poll::disenroll(Socket *s) {
+    void Poll::disenroll(std::shared_ptr<Socket>) {
         // TODO: Implement these
-        throw std::runtime_error("Poll::disenroll(Socket *s) has yet to be implemented");
+        throw std::runtime_error("Poll::disenroll(std::shared_ptr<Socket>) has "
+                                 "yet to be implemented");
     }
 
 } // namespace Sockets
