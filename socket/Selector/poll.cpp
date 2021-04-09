@@ -53,14 +53,37 @@ namespace Sockets {
     }
 
     void Poll::disenroll(int fd) {
-        // TODO: Implement these
-        throw std::runtime_error("Poll::disenroll(int fd) has yet to be implemented");
+        auto it_fd  = this->fds.begin();
+        auto it_dev = this->devs.begin();
+
+        // Locate the index which fits the description
+        while (it_fd != this->fds.end() && it_dev != this->devs.end()) {
+            if ((*it_fd).fd == fd) {
+                this->fds.erase(it_fd);
+                this->devs.erase(it_dev);
+                break;
+            }
+
+            it_fd++;
+            it_dev++;
+        }
     }
 
-    void Poll::disenroll(std::shared_ptr<Socket>) {
-        // TODO: Implement these
-        throw std::runtime_error("Poll::disenroll(std::shared_ptr<Socket>) has "
-                                 "yet to be implemented");
+    void Poll::disenroll(std::shared_ptr<Socket> s) {
+        auto it_fd  = this->fds.begin();
+        auto it_dev = this->devs.begin();
+
+        // Locate the index which fits the description
+        while (it_fd != this->fds.end() && it_dev != this->devs.end()) {
+            if ((*it_dev) == s) {
+                this->fds.erase(it_fd);
+                this->devs.erase(it_dev);
+                break;
+            }
+
+            it_fd++;
+            it_dev++;
+        }
     }
 
 } // namespace Sockets
