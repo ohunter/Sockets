@@ -15,8 +15,7 @@ namespace Sockets {
         char *           serv = nullptr;
         int              err;
         struct addrinfo  hints;
-        struct addrinfo *result = nullptr;
-        struct addrinfo *out    = new struct addrinfo();
+        struct addrinfo *out = nullptr;
 
         std::memset(&hints, 0, sizeof(struct addrinfo));
 
@@ -24,18 +23,17 @@ namespace Sockets {
         hints.ai_socktype = static_cast<int>(ty);
         hints.ai_flags    = flags;
 
-        addr = new char[address.size() + 1];
-        serv = new char[service.size() + 1];
+        addr = new char[address.size() + 1]();
+        serv = new char[service.size() + 1]();
 
         std::copy(address.begin(), address.end(), addr);
         std::copy(service.begin(), service.end(), serv);
 
-        if ((err = getaddrinfo(addr, serv, &hints, &result)) != 0) {
+        if ((err = getaddrinfo(addr, serv, &hints, &out)) != 0) {
             throw std::runtime_error(std::string(gai_strerror(err)));
         }
 
-        std::memcpy(out, result, sizeof(struct addrinfo));
-        freeaddrinfo(result);
+        freeaddrinfo(out->ai_next);
 
         delete[] addr;
         delete[] serv;
@@ -75,10 +73,10 @@ namespace Sockets {
 
         switch (dom) {
         case Domain::IPv4:
-            std::memcpy(&this->addr, info.ai_addr, sizeof(sockaddr_storage));
+            std::memcpy(&this->addr, (sockaddr_storage *)info.ai_addr, sizeof(sockaddr_storage));
             break;
         case Domain::IPv6:
-            std::memcpy(&this->addr, info.ai_addr, sizeof(sockaddr_storage));
+            std::memcpy(&this->addr, (sockaddr_storage *)info.ai_addr, sizeof(sockaddr_storage));
             break;
         default:
             // TODO: Handle unix and undefined domains

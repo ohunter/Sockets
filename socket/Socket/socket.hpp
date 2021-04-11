@@ -157,7 +157,7 @@ namespace Sockets {
         SSL *ssl = nullptr;
 
         protected:
-        TLSSocket(TCPSocket *tcp, SSL_CTX *ctx);
+        TLSSocket(TCPSocket& tcp, SSL_CTX *ctx);
 
         void connect();
         void service(int backlog);

@@ -13,7 +13,7 @@
 
 namespace Sockets {
 
-    TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(*tcp) {
+    TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating SSL state");
         }
@@ -37,6 +37,10 @@ namespace Sockets {
     }
 
     TLSSocket::TLSSocket(TLSSocket &other) : TCPSocket(other) {
+        if (SSL_up_ref(other.ssl) == 0){
+            throw std::runtime_error("Error when incrementing SSL reference counter");
+        }
+
         if (SSL_set_fd(this->ssl, this->_fd) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
                                      "descriptor to SSL state");
@@ -44,13 +48,19 @@ namespace Sockets {
     }
 
     TLSSocket::TLSSocket(TLSSocket &&other) : TCPSocket(other) {
+        if (SSL_up_ref(other.ssl) == 0){
+            throw std::runtime_error("Error when incrementing SSL reference counter");
+        }
+
         if (SSL_set_fd(this->ssl, this->_fd) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
                                      "descriptor to SSL state");
         }
     }
 
-    TLSSocket::~TLSSocket() { }
+    TLSSocket::~TLSSocket() {
+        SSL_free(this->ssl);
+    }
 
     void TLSSocket::connect() {
         int m;
@@ -80,30 +90,32 @@ namespace Sockets {
 
     std::shared_ptr<TLSSocket> TLSSocket::connect(std::string address, uint16_t port, Domain dom,
                                                   SSL_CTX *ctx, Operation op) {
-        auto tcp = TCPSocket::connect(address, port, dom, op);
+        auto      addr = resolve(address, port, dom, Type::Stream);
+        TCPSocket tcp(*addr, dom, op);
 
-        std::shared_ptr<TLSSocket> sock = std::make_shared<TLSSocket>(TLSSocket(tcp.get(), ctx));
+        std::shared_ptr<TLSSocket> out(new TLSSocket(tcp, ctx));
 
-        sock->connect();
+        out->connect();
 
-        return sock;
+        return out;
     }
     std::shared_ptr<TLSSocket> TLSSocket::service(std::string address, uint16_t port, Domain dom,
                                                   SSL_CTX *ctx, Operation op, int backlog) {
-        auto tcp = TCPSocket::service(address, port, dom, op);
+        auto addr = resolve(address, port, dom, Type::Stream);
+        auto tcp  = TCPSocket(*addr, dom, op);
 
-        std::shared_ptr<TLSSocket> sock = std::make_shared<TLSSocket>(TLSSocket(tcp.get(), ctx));
+        std::shared_ptr<TLSSocket> out(new TLSSocket(tcp, ctx));
 
-        sock->service(backlog);
+        out->service(backlog);
 
-        return sock;
+        return out;
     }
 
     std::shared_ptr<TLSSocket> TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
         std::shared_ptr<TCPSocket> tcp =
             TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
-        std::shared_ptr<TLSSocket> out = std::make_shared<TLSSocket>(TLSSocket(tcp.get(), ctx));
+        std::shared_ptr<TLSSocket> out(new TLSSocket(*tcp, ctx));
 
         int m = 0;
 
