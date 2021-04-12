@@ -37,7 +37,7 @@ namespace Sockets {
     }
 
     TLSSocket::TLSSocket(TLSSocket &other) : TCPSocket(other) {
-        if (SSL_up_ref(other.ssl) == 0){
+        if (SSL_up_ref(other.ssl) == 0) {
             throw std::runtime_error("Error when incrementing SSL reference counter");
         }
 
@@ -48,7 +48,7 @@ namespace Sockets {
     }
 
     TLSSocket::TLSSocket(TLSSocket &&other) : TCPSocket(other) {
-        if (SSL_up_ref(other.ssl) == 0){
+        if (SSL_up_ref(other.ssl) == 0) {
             throw std::runtime_error("Error when incrementing SSL reference counter");
         }
 
@@ -58,9 +58,7 @@ namespace Sockets {
         }
     }
 
-    TLSSocket::~TLSSocket() {
-        SSL_free(this->ssl);
-    }
+    TLSSocket::~TLSSocket() { SSL_free(this->ssl); }
 
     void TLSSocket::connect() {
         int m;
@@ -119,14 +117,12 @@ namespace Sockets {
 
         int m = 0;
 
-        if ((m = SSL_accept(out->ssl)) == 0)
-            throw std::runtime_error("Graceful rejection of SSL handshake");
-        else if (m < 0)
-            throw std::runtime_error("Error when performing SSL handshake");
+        if ((m = SSL_accept(out->ssl)) <= 0)
+            throw_ssl_error(SSL_get_error(this->ssl, m));
 
         if (op == Operation::Non_blocking)
             if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
-                perror("TLSSocket::accept(SSL_CTX*, Operation, int): ");
+                perror("TLSSocket::accept(SSL_CTX*, Operation, int)");
                 throw std::runtime_error("Error when making socket non-blocking");
             }
 
@@ -141,7 +137,7 @@ namespace Sockets {
             // Force socket to be blocking to avoid needing another round of
             // polling
             if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
-                perror("TLSSocket::close(): ");
+                perror("TLSSocket::close()");
                 throw std::runtime_error("Error when making socket blocking");
             }
 
