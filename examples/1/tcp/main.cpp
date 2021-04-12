@@ -28,7 +28,7 @@ void server(std::string address, uint16_t port) {
         address, port, Sockets::Domain::IPv4, Sockets::Operation::Non_blocking);
 
     // Create the polling device
-    auto pd = Sockets::Poll();
+    auto pd = Sockets::Poll<Sockets::TCPSocket>();
 
     // Register the listening socket on the polling device
     // This socket only needs to be registered with the `POLLIN` event as it

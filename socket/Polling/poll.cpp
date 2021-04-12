@@ -6,15 +6,21 @@
 #include "polling.hpp"
 
 namespace Sockets {
-    Poll::Poll() { }
+    template <class S>
+    Poll<S>::Poll() {
+        static_assert(std::is_base_of<Socket, S>::value,
+                      "Templated class needs to inherit from Sockets::Socket");
+    }
 
-    Poll::~Poll() { }
+    template <class S>
+    Poll<S>::~Poll() { }
 
-    std::array<std::vector<std::shared_ptr<Socket>>, 3> Poll::poll(int timeout) {
+    template <class S>
+    std::array<std::vector<std::shared_ptr<S>>, 3> Poll<S>::poll(int timeout) {
         int n = 0;
         int i = 0;
 
-        std::array<std::vector<std::shared_ptr<Socket>>, 3> out;
+        std::array<std::vector<std::shared_ptr<S>>, 3> out;
 
         if ((n = ::poll(this->fds.data(), this->fds.size(), timeout)) < 0) {
             perror("Poll::poll(int)");
@@ -46,13 +52,15 @@ namespace Sockets {
         return out;
     }
 
-    void Poll::enroll(std::shared_ptr<Socket> s, short event) {
+    template <class S>
+    void Poll<S>::enroll(std::shared_ptr<S> s, short event) {
         pollfd tmp = {s->fd(), event, 0};
         this->fds.push_back(tmp);
         this->devs.push_back(s);
     }
 
-    void Poll::disenroll(int fd) {
+    template <class S>
+    void Poll<S>::disenroll(int fd) {
         auto it_fd  = this->fds.begin();
         auto it_dev = this->devs.begin();
 
@@ -69,7 +77,8 @@ namespace Sockets {
         }
     }
 
-    void Poll::disenroll(std::shared_ptr<Socket> s) {
+    template <class S>
+    void Poll<S>::disenroll(std::shared_ptr<S> s) {
         auto it_fd  = this->fds.begin();
         auto it_dev = this->devs.begin();
 
