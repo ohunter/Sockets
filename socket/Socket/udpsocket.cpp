@@ -31,7 +31,7 @@ namespace Sockets {
             throw std::runtime_error("Cannot connect with a busy socket");
 
         if (::connect(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
-            perror("UDPSocket::connect(): ");
+            perror("UDPSocket::connect()");
             throw std::runtime_error("Error when trying to connect to destination");
         }
     }
@@ -41,12 +41,12 @@ namespace Sockets {
             throw std::runtime_error("Cannot service with a busy socket");
 
         if (bind(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
-            perror("UDPSocket::service(int): ");
+            perror("UDPSocket::service(int)");
             throw std::runtime_error("Error when binding socket to address");
         }
 
         if (listen(this->_fd, backlog)) {
-            perror("UDPSocket::service(int): ");
+            perror("UDPSocket::service(int)");
             throw std::runtime_error("Error when trying to listen on socket");
         }
     }
@@ -94,7 +94,7 @@ namespace Sockets {
                               this->addr.ss_family == static_cast<int>(Domain::IPv4)
                                   ? sizeof(struct sockaddr_in)
                                   : sizeof(struct sockaddr_in6))) < 0) {
-                perror("UDPSocket::send(const char *, size_t): ");
+                perror("UDPSocket::send(const char *, size_t)");
                 throw std::runtime_error("Error when sending data");
             }
             n += m;
@@ -113,7 +113,7 @@ namespace Sockets {
         while (n < buflen) {
             if ((m = ::recvfrom(this->_fd, &buf[n], buflen - n, 0, (struct sockaddr *)&this->addr,
                                 &len)) < 0) {
-                perror("UDPSocket::recv(char *, size_t): ");
+                perror("UDPSocket::recv(char *, size_t)");
                 throw std::runtime_error("Error when receiving data");
             }
             n += m;

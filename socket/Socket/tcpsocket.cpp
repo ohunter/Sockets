@@ -31,7 +31,7 @@ namespace Sockets {
             throw std::runtime_error("Cannot connect with a busy socket");
 
         if (::connect(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
-            perror("TCPSocket::connect(): ");
+            perror("TCPSocket::connect()");
             throw std::runtime_error("Error when trying to connect to destination");
         }
 
@@ -43,12 +43,12 @@ namespace Sockets {
             throw std::runtime_error("Cannot service with a busy socket");
 
         if (bind(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
-            perror("TCPSocket::service(int): ");
+            perror("TCPSocket::service(int)");
             throw std::runtime_error("Error when binding socket to address");
         }
 
         if (listen(this->_fd, backlog)) {
-            perror("TCPSocket::service(int): ");
+            perror("TCPSocket::service(int)");
             throw std::runtime_error("Error when trying to listen on socket");
         }
 
@@ -91,7 +91,7 @@ namespace Sockets {
             flag |= SOCK_NONBLOCK;
 
         if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len, flag)) == -1) {
-            perror("TCPSocket::accept(Operation, int): ");
+            perror("TCPSocket::accept(Operation, int)");
             throw std::runtime_error("Error on accepting connection");
         }
 
@@ -117,7 +117,7 @@ namespace Sockets {
 
         while (n < buflen) {
             if ((m = ::send(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("TCPSocket::send(const char *, size_t): ");
+                perror("TCPSocket::send(const char *, size_t)");
                 throw std::runtime_error("Error when sending data");
             }
             n += m;
@@ -136,7 +136,7 @@ namespace Sockets {
 
             if (m < 0) {
                 if (this->operation == Operation::Blocking || errno != EAGAIN) {
-                    perror("TCPSocket::recv(char *, size_t): ");
+                    perror("TCPSocket::recv(char *, size_t)");
                     throw std::runtime_error("Error when receiving data");
                 }
                 break;

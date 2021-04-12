@@ -51,7 +51,7 @@ namespace Sockets {
 
         if ((this->_fd = dup(fd)) < 0) {
             perror("Socket::Socket(int, struct addrinfo &, Domain, Type, "
-                   "Operation): ");
+                   "Operation)");
             throw std::runtime_error("Error when making socket non-blocking");
         }
 
@@ -65,7 +65,7 @@ namespace Sockets {
 
         if ((this->_fd = socket(info.ai_family, info.ai_socktype, info.ai_protocol)) < 0) {
             perror("Socket::Socket(struct addrinfo&, Domain, Type "
-                   ", Operation): ");
+                   ", Operation)");
             throw std::runtime_error("Error when establishing socket");
         }
 
@@ -86,7 +86,7 @@ namespace Sockets {
         if (op == Operation::Non_blocking) {
             if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL) | O_NONBLOCK) < 0) {
                 perror("Socket::Socket(struct addrinfo&, Domain, Type "
-                       ", Operation): ");
+                       ", Operation)");
                 throw std::runtime_error("Error when making socket non-blocking");
             }
         }
@@ -98,7 +98,7 @@ namespace Sockets {
 
     Socket::Socket(Socket *other) {
         if ((this->_fd = dup(other->fd())) == -1) {
-            perror("Socket::Socket(Socket*): ");
+            perror("Socket::Socket(Socket*)");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
@@ -112,7 +112,7 @@ namespace Sockets {
     Socket::Socket(Socket &other) {
 
         if ((this->_fd = dup(other.fd())) == -1) {
-            perror("Socket::Socket(Socket&): ");
+            perror("Socket::Socket(Socket&)");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
@@ -125,7 +125,7 @@ namespace Sockets {
 
     Socket::Socket(Socket &&other) {
         if ((this->_fd = dup(other.fd())) == -1) {
-            perror("Socket::Socket(Socket&&): ");
+            perror("Socket::Socket(Socket&&)");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 

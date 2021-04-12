@@ -17,7 +17,7 @@ namespace Sockets {
         std::array<std::vector<std::shared_ptr<Socket>>, 3> out;
 
         if ((n = ::poll(this->fds.data(), this->fds.size(), timeout)) < 0) {
-            perror("Poll::poll(int): ");
+            perror("Poll::poll(int)");
             throw std::runtime_error("Error when polling sockets");
         }
 
