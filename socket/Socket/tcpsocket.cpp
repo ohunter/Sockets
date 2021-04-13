@@ -97,13 +97,14 @@ namespace Sockets {
 
         std::shared_ptr<TCPSocket> out =
             std::make_shared<TCPSocket>(TCPSocket(fd, addr, this->domain, op));
-        ;
+
         out->state = State::Connected;
 
-        // Close the accepted file descriptor as it is duplicated in the
+        // Close the accepted file descriptor if it has been duplicated in the
         // constructor
-        if (::close(fd) != 0 && errno != ENOTCONN)
-            perror("Non-fatal error when closing file descriptor");
+        if (fd != out->fd())
+            if (::close(fd) != 0 && errno != ENOTCONN)
+                perror("Non-fatal error when closing file descriptor");
 
         return out;
     }
@@ -111,37 +112,43 @@ namespace Sockets {
     void TCPSocket::close() { Socket::close(); }
 
     size_t TCPSocket::send(const char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        size_t  n = 0;
+        ssize_t m = 0;
 
-        while (n < buflen) {
-            if ((m = ::send(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("TCPSocket::send(const char *, size_t)");
-                throw std::runtime_error("Error when sending data");
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = ::send(this->_fd, &buf[n], buflen - n, 0);
+
+            if (m < 0) {
+                if (this->operation == Operation::Blocking || errno != EAGAIN)
+                    perror("TCPSocket::recv(char *, size_t)");
+                break;
+            } else if (m == 0) {
+                break;
             }
+
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
         return n;
     }
 
     size_t TCPSocket::recv(char *buf, size_t buflen) {
+        size_t  n = 0;
+        ssize_t m = 0;
+
         std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
 
         do {
             m = ::recv(this->_fd, &buf[n], buflen - n, 0);
 
             if (m < 0) {
-                if (this->operation == Operation::Blocking || errno != EAGAIN) {
+                if (this->operation == Operation::Blocking || errno != EAGAIN)
                     perror("TCPSocket::recv(char *, size_t)");
-                    throw std::runtime_error("Error when receiving data");
-                }
                 break;
             } else if (m == 0) {
-                // Connection has been shut down
+                break;
             }
 
             n += m;

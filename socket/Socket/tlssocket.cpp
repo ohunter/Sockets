@@ -152,33 +152,73 @@ namespace Sockets {
     }
 
     size_t TLSSocket::send(const char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        size_t  n = 0;
+        ssize_t m = 0;
 
-        while (n < buflen) {
-            if ((m = SSL_write(this->ssl, &buf[n], buflen - n)) <= 0)
-                throw_ssl_error(SSL_get_error(this->ssl, m));
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = SSL_write(this->ssl, &buf[n], buflen - n);
+
+            if (m <= 0) {
+                // If the socket is blocking then a serious error happened
+                // If the socket is non-blocking then see if the error is `SSL_ERROR_WANT_READ` or
+                // `SSL_ERROR_WANT_WRITE` If so, call `SSL_write` with the exact same parameters
+
+                try {
+                    throw_ssl_error(SSL_get_error(this->ssl, m));
+                } catch (const ssl_error_want_read &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                } catch (const ssl_error_want_write &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                }
+            }
 
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
         return n;
     }
 
     size_t TLSSocket::recv(char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        size_t  n = 0;
+        ssize_t m = 0;
 
-        while (n < buflen) {
-            if ((m = SSL_read(this->ssl, &buf[n], buflen - n)) <= 0)
-                throw_ssl_error(SSL_get_error(this->ssl, m));
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = SSL_read(this->ssl, &buf[n], buflen - n);
+
+            if (m <= 0) {
+                // If the socket is blocking then a serious error happened
+                // If the socket is non-blocking then see if the error is `SSL_ERROR_WANT_READ` or
+                // `SSL_ERROR_WANT_WRITE` If so, call `SSL_read` with the exact same parameters
+
+                try {
+                    throw_ssl_error(SSL_get_error(this->ssl, m));
+                } catch (const ssl_error_want_read& e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                } catch (const ssl_error_want_write &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                }
+            }
 
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
-        return 0;
+        return n;
     }
 
 } // namespace Sockets
