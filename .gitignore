@@ -1,5 +1,5 @@
 # Stuff to ignore
-**/build/*
+**/build*/*
 **/certificates/*
 
 # Stuff to force include
