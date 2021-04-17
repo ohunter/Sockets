@@ -17,25 +17,23 @@ void server(std::string address, uint16_t port) {
     char   buf[256] = {0};
 
     try {
-        Sockets::TLSSocket *sock =
+
+        std::shared_ptr<Sockets::TLSSocket> sock =
             Sockets::TLSSocket::service(address, port, Sockets::Domain::IPv4, ctx);
 
         std::cout << "Waiting\n";
 
         // Accept the incoming connection
-        Sockets::TLSSocket *connection = sock->accept(ctx);
+        std::shared_ptr<Sockets::TLSSocket> connection = sock->accept(ctx);
 
         // Read the size of the incoming message
         connection->recv(buf, 1);
-        n = (uint8_t)std::atoi(buf);
-        std::cout << "Expecting " << n << " bytes" << std::endl;
+        n = std::atoi(buf);
         connection->recv(buf, n);
 
         std::cout << "Server recieved " << n << " bytes containing: " << std::string(buf)
                   << std::endl;
 
-        char b[] = {(char)n, 0};
-        connection->send(b, 1);
         connection->send(buf, n);
 
         // Close the sockets
@@ -67,23 +65,19 @@ int main(int argc, char *argv[]) {
 
     try {
         // Connect to the server
-        Sockets::TLSSocket *sock =
+        std::shared_ptr<Sockets::TLSSocket> sock =
             Sockets::TLSSocket::connect("127.0.0.1", 12345, Sockets::Domain::IPv4, ctx);
 
         std::cout << "Enter the message: \n";
 
         std::getline(std::cin, s);
-
-        std::cout << "Sending a message of " << s.size() << " bytes\n";
-
         sock->send(std::to_string(s.size()).c_str(), 1);
         sock->send(s.c_str(), s.size());
 
-        sock->recv(buf, 1);
-        sock->recv(buf, (int)buf[0]);
+        sock->recv(buf, s.size());
 
-        std::cout << "Client recieved " << std::strlen(buf)
-                  << " bytes containing: " << std::string(buf) << std::endl;
+        std::cout << "Client recieved " << s.size() << " bytes containing: " << std::string(buf)
+                  << std::endl;
 
         // Close the connection
         sock->close();
