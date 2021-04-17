@@ -9,7 +9,7 @@
 namespace Sockets {
     class Socket;
 
-    // S has to be aderivative of from Sockets::Socket for the program to compile
+    // S has to be a derivative of Sockets::Socket for the program to compile
     template <class S>
     class Poll {
         std::vector<struct pollfd>      fds;
@@ -36,7 +36,7 @@ namespace Sockets {
 
             auto it_fd  = this->fds.begin();
             auto it_dev = this->devs.begin();
-            // Do some bullshit
+
             while (i < n && it_fd != this->fds.end() && it_dev != this->devs.end()) {
                 if ((*it_fd).revents & (POLLERR | POLLHUP | POLLNVAL)) {
                     out[0].emplace_back(*it_dev);
@@ -61,7 +61,7 @@ namespace Sockets {
         }
 
         void enroll(std::shared_ptr<S> s, short event = POLLIN | POLLOUT) {
-            // Gang gang
+
             pollfd tmp = {s->fd(), event, 0};
             this->fds.push_back(tmp);
             this->devs.push_back(s);
