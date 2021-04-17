@@ -144,8 +144,6 @@ namespace Sockets {
             if ((m = SSL_shutdown(this->ssl)) == 0) {
             } else if (m < 0)
                 throw_ssl_error(SSL_get_error(this->ssl, m));
-
-            SSL_free(this->ssl);
         }
 
         TCPSocket::close();
@@ -202,7 +200,7 @@ namespace Sockets {
 
                 try {
                     throw_ssl_error(SSL_get_error(this->ssl, m));
-                } catch (const ssl_error_want_read& e) {
+                } catch (const ssl_error_want_read &e) {
                     if (this->operation == Operation::Blocking)
                         throw;
 
