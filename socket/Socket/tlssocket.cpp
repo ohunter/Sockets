@@ -13,85 +13,120 @@
 
 namespace Sockets {
 
-    TLSSocket::~TLSSocket() { }
-
     TLSSocket::TLSSocket(TCPSocket &tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating SSL state");
         }
 
-        if (SSL_set_fd(this->ssl, this->fd()) == 0) {
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
                                      "descriptor to SSL state");
         }
     }
 
-    TLSSocket::TLSSocket(TCPSocket *tcp, SSL_CTX *ctx) : TCPSocket(tcp) {
+    TLSSocket::TLSSocket(struct addrinfo &info, Domain dom, SSL_CTX *ctx, Operation op)
+        : TCPSocket(info, dom, op) {
         if ((this->ssl = SSL_new(ctx)) == NULL) {
             throw std::runtime_error("Error when creating SSL state");
         }
 
-        if (SSL_set_fd(this->ssl, this->fd()) == 0) {
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
             throw std::runtime_error("Error when attempting to bind file "
                                      "descriptor to SSL state");
         }
     }
 
-    TLSSocket TLSSocket::Service(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom, ByteOrder bo,
-                                 Operation op, int backlog) {
-        auto tcp = TCPSocket::Service(address, port, dom, bo, op, backlog);
+    TLSSocket::TLSSocket(TLSSocket &other) : TCPSocket(other) {
+        if (SSL_up_ref(other.ssl) == 0) {
+            throw std::runtime_error("Error when incrementing SSL reference counter");
+        }
 
-        return TLSSocket(tcp, ctx);
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
+            throw std::runtime_error("Error when attempting to bind file "
+                                     "descriptor to SSL state");
+        }
     }
 
-    TLSSocket TLSSocket::Connect(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom, ByteOrder bo,
-                                 Operation op) {
-        auto tcp = TCPSocket::Connect(address, port, dom, bo, op);
-        auto out = TLSSocket(tcp, ctx);
-        int  m   = 0;
+    TLSSocket::TLSSocket(TLSSocket &&other) : TCPSocket(other) {
+        if (SSL_up_ref(other.ssl) == 0) {
+            throw std::runtime_error("Error when incrementing SSL reference counter");
+        }
+
+        if (SSL_set_fd(this->ssl, this->_fd) == 0) {
+            throw std::runtime_error("Error when attempting to bind file "
+                                     "descriptor to SSL state");
+        }
+    }
+
+    TLSSocket::~TLSSocket() { SSL_free(this->ssl); }
+
+    void TLSSocket::connect() {
+        int m;
+        if (this->state != State::Instantiated)
+            throw std::runtime_error("Cannot connect with a busy socket");
+
+        TCPSocket::connect();
 
         // Start handshaking process
-        if ((m = SSL_connect(out.ssl)) != 1)
-            throw_ssl_error(SSL_get_error(out.ssl, m));
+        if ((m = SSL_connect(this->ssl)) != 1)
+            throw_ssl_error(SSL_get_error(this->ssl, m));
 
         // Check if the socket received a certificate
-        X509 *cert = SSL_get_peer_certificate(out.ssl);
+        X509 *cert = SSL_get_peer_certificate(this->ssl);
 
         if (!cert)
-            throw std::runtime_error(
-                "No X509 certificate received from server");
+            throw std::runtime_error("No X509 certificate received from server");
 
         X509_free(cert);
 
         // Verify the received certificate
-        if (SSL_get_verify_result(out.ssl) != X509_V_OK)
+        if (SSL_get_verify_result(this->ssl) != X509_V_OK)
             throw std::runtime_error("Failed to verify received certificate");
+    }
+
+    void TLSSocket::service(int backlog) { TCPSocket::service(backlog); }
+
+    std::shared_ptr<TLSSocket> TLSSocket::connect(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op) {
+        auto      addr = resolve(address, port, dom, Type::Stream);
+        TCPSocket tcp(*addr, dom, op);
+
+        std::shared_ptr<TLSSocket> out(new TLSSocket(tcp, ctx));
+
+        out->connect();
+
+        return out;
+    }
+    std::shared_ptr<TLSSocket> TLSSocket::service(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op, int backlog) {
+        auto addr = resolve(address, port, dom, Type::Stream);
+        auto tcp  = TCPSocket(*addr, dom, op);
+
+        std::shared_ptr<TLSSocket> out(new TLSSocket(tcp, ctx));
+
+        out->service(backlog);
 
         return out;
     }
 
-    TLSSocket TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
-        auto tcp =
+    std::shared_ptr<TLSSocket> TLSSocket::accept(SSL_CTX *ctx, Operation op, int flag) {
+        std::shared_ptr<TCPSocket> tcp =
             TCPSocket::accept(Operation::Blocking, flag & ~SOCK_NONBLOCK);
 
-        auto out = TLSSocket(tcp, ctx);
-        int  m   = 0;
+        std::shared_ptr<TLSSocket> out(new TLSSocket(*tcp, ctx));
 
-        if ((m = SSL_accept(out.ssl)) == 0)
-            throw std::runtime_error("Graceful rejection of SSL handshake");
-        else if (m < 0)
-            throw std::runtime_error("Error when performing SSL handshake");
+        int m = 0;
 
-        if (op == Operation::Non_blocking)
-            if (fcntl(this->fd(), F_SETFL,
-                      fcntl(this->fd(), F_GETFL, 0) | O_NONBLOCK) == -1) {
-                perror("TLSSocket::accept(SSL_CTX *ctx, Operation op, int "
-                       "flag): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
+        if ((m = SSL_accept(out->ssl)) <= 0)
+            throw_ssl_error(SSL_get_error(this->ssl, m));
+
+        if (op == Operation::Non_blocking) {
+            if (fcntl(out->_fd, F_SETFL, fcntl(out->_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
+                perror("TLSSocket::accept(SSL_CTX*, Operation, int)");
+                throw std::runtime_error("Error when making socket non-blocking");
             }
+            out->operation = op;
+        }
 
         return out;
     }
@@ -99,54 +134,93 @@ namespace Sockets {
     void TLSSocket::close() {
         int m;
 
-        if (this->state != State::Undefined || this->state != State::Closed) {
+        if (this->state != State::Closed) {
 
             // Force socket to be blocking to avoid needing another round of
             // polling
-            if (fcntl(this->_fd, F_SETFL,
-                      fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
-                perror("TLSSocket::close(): ");
+            if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) & ~O_NONBLOCK) == -1) {
+                perror("TLSSocket::close()");
                 throw std::runtime_error("Error when making socket blocking");
             }
 
             if ((m = SSL_shutdown(this->ssl)) == 0) {
             } else if (m < 0)
                 throw_ssl_error(SSL_get_error(this->ssl, m));
-
-            SSL_free(this->ssl);
         }
 
         TCPSocket::close();
     }
 
     size_t TLSSocket::send(const char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        size_t  n = 0;
+        ssize_t m = 0;
 
-        while (n < buflen) {
-            if ((m = SSL_write(this->ssl, &buf[n], buflen - n)) <= 0)
-                throw_ssl_error(SSL_get_error(this->ssl, m));
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = SSL_write(this->ssl, &buf[n], buflen - n);
+
+            if (m <= 0) {
+                // If the socket is blocking then a serious error happened
+                // If the socket is non-blocking then see if the error is `SSL_ERROR_WANT_READ` or
+                // `SSL_ERROR_WANT_WRITE` If so, call `SSL_write` with the exact same parameters
+
+                try {
+                    throw_ssl_error(SSL_get_error(this->ssl, m));
+                } catch (const ssl_error_want_read &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                } catch (const ssl_error_want_write &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                }
+            }
 
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
         return n;
     }
 
     size_t TLSSocket::recv(char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        // TODO: Fix this for non-blocking sockets
 
-        while (n < buflen) {
-            if ((m = SSL_read(this->ssl, &buf[n], buflen - n)) <= 0)
-                throw_ssl_error(SSL_get_error(this->ssl, m));
+        size_t  n = 0;
+        ssize_t m = 0;
+
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = SSL_read(this->ssl, &buf[n], buflen - n);
+
+            if (m <= 0) {
+                // If the socket is blocking then a serious error happened
+                // If the socket is non-blocking then see if the error is `SSL_ERROR_WANT_READ` or
+                // `SSL_ERROR_WANT_WRITE` If so, call `SSL_read` with the exact same parameters
+
+                try {
+                    throw_ssl_error(SSL_get_error(this->ssl, m));
+                } catch (const ssl_error_want_read &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                } catch (const ssl_error_want_write &e) {
+                    if (this->operation == Operation::Blocking)
+                        throw;
+
+                    continue;
+                }
+            }
 
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
-        return 0;
+        return n;
     }
 
 } // namespace Sockets

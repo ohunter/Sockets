@@ -12,90 +12,74 @@
 
 namespace Sockets {
 
+    UDPSocket::UDPSocket(int fd, sockaddr_storage &info, Domain dom, Operation op)
+        : Socket(fd, info, dom, Type::Datagram, op) { }
+
+    // UDPSocket::UDPSocket(std::shared_ptr<UDPSocket> other) : Socket(other) { }
+
+    UDPSocket::UDPSocket(struct addrinfo &info, Domain dom, Operation op)
+        : Socket(info, dom, Type::Datagram, op) { }
+
+    UDPSocket::UDPSocket(UDPSocket &other) : Socket(other) { }
+
+    UDPSocket::UDPSocket(UDPSocket &&other) : Socket(other) { }
+
     UDPSocket::~UDPSocket() { }
 
-    UDPSocket UDPSocket::Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op) {
-        int              fd;
-        struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
-        sockaddr_storage info;
+    void UDPSocket::connect() {
+        if (this->state != State::Instantiated)
+            throw std::runtime_error("Cannot connect with a busy socket");
 
-        if ((fd = socket(addr->ai_family, addr->ai_socktype,
-                         addr->ai_protocol)) < 0) {
-            perror("UDPSocket::Service(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo, Operation op): ");
-            throw std::runtime_error("Error when establishing socket");
+        if (::connect(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
+            perror("UDPSocket::connect()");
+            throw std::runtime_error("Error when trying to connect to destination");
         }
+    }
 
-        std::memset(&info, 0, sizeof(sockaddr_storage));
+    void UDPSocket::service(int backlog) {
+        if (this->state != State::Instantiated)
+            throw std::runtime_error("Cannot service with a busy socket");
 
-        switch (dom) {
-        case Domain::IPv4:
-        case Domain::IPv6:
-            std::memcpy(&info, addr->ai_addr, sizeof(struct sockaddr_storage));
-            break;
-        default:
-            // TODO: Handle unix and undefined domains
-            break;
-        }
-
-        if (op == Operation::Non_blocking) {
-            if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("UDPSocket::Service(std::string address, uint16_t port, "
-                       "Domain dom, ByteOrder bo, Operation op): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
-            }
-        }
-
-        if (bind(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("UDPSocket::Service(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo, Operation op): ");
+        if (bind(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
+            perror("UDPSocket::service(int)");
             throw std::runtime_error("Error when binding socket to address");
         }
 
-        freeaddrinfo(addr);
-
-        return UDPSocket(fd, info, dom, State::Open, bo, op);
+        if (listen(this->_fd, backlog)) {
+            perror("UDPSocket::service(int)");
+            throw std::runtime_error("Error when trying to listen on socket");
+        }
     }
 
-    UDPSocket UDPSocket::Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op) {
-        int              fd;
-        struct addrinfo *addr = resolve(address, port, dom, Type::Datagram);
-        sockaddr_storage info;
+    /* std::shared_ptr<UDPSocket> UDPSocket::accept(Operation op, int flag) {
+        throw std::runtime_error(
+            "std::shared_ptr<UDPSocket> UDPSocket::accept(Operation, int) has not been implemented
+    yet");
+    } */
 
-        if ((fd = socket(addr->ai_family, addr->ai_socktype,
-                         addr->ai_protocol)) < 0) {
-            perror("UDPSocket::Connect(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo, Operation op): ");
-            throw std::runtime_error("Error when establishing socket");
-        }
+    std::shared_ptr<UDPSocket> UDPSocket::connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op) {
+        auto addr = resolve(address, port, dom, Type::Datagram);
 
-        std::memset(&info, 0, sizeof(sockaddr_storage));
-
-        switch (dom) {
-        case Domain::IPv4:
-        case Domain::IPv6:
-            std::memcpy(&info, addr->ai_addr, sizeof(struct sockaddr_storage));
-            break;
-        default:
-            // TODO: Handle unix and undefined domains
-            break;
-        }
-
-        if (op == Operation::Non_blocking) {
-            if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("UDPSocket::Connect(std::string address, uint16_t port, "
-                       "Domain dom, ByteOrder bo, Operation op): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
-            }
-        }
+        std::shared_ptr<UDPSocket> sock = std::make_shared<UDPSocket>(UDPSocket(*addr, dom, op));
 
         freeaddrinfo(addr);
 
-        return UDPSocket(fd, info, dom, State::Open, bo, op);
+        sock->connect();
+        sock->state = State::Connected;
+        return sock;
+    }
+    std::shared_ptr<UDPSocket> UDPSocket::service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op, int backlog) {
+        auto addr = resolve(address, port, dom, Type::Datagram);
+
+        std::shared_ptr<UDPSocket> sock = std::make_shared<UDPSocket>(UDPSocket(*addr, dom, op));
+
+        freeaddrinfo(addr);
+
+        sock->service(backlog);
+        sock->state = State::Open;
+        return sock;
     }
 
     void UDPSocket::close() { Socket::close(); }
@@ -106,13 +90,11 @@ namespace Sockets {
         ssize_t                     m = 0;
 
         while (n < buflen) {
-            if ((m = ::sendto(this->_fd, &buf[n], buflen - n, 0,
-                              (struct sockaddr *)&this->addr,
-                              this->addr.ss_family ==
-                                      static_cast<int>(Domain::IPv4)
+            if ((m = ::sendto(this->_fd, &buf[n], buflen - n, 0, (struct sockaddr *)&this->addr,
+                              this->addr.ss_family == static_cast<int>(Domain::IPv4)
                                   ? sizeof(struct sockaddr_in)
                                   : sizeof(struct sockaddr_in6))) < 0) {
-                perror("UDPSocket::send(const char *buf, size_t buflen): ");
+                perror("UDPSocket::send(const char *, size_t)");
                 throw std::runtime_error("Error when sending data");
             }
             n += m;
@@ -129,9 +111,9 @@ namespace Sockets {
         socklen_t len = 0;
 
         while (n < buflen) {
-            if ((m = ::recvfrom(this->_fd, &buf[n], buflen - n, 0,
-                                (struct sockaddr *)&this->addr, &len)) < 0) {
-                perror("UDPSocket::recv(char *buf, size_t buflen): ");
+            if ((m = ::recvfrom(this->_fd, &buf[n], buflen - n, 0, (struct sockaddr *)&this->addr,
+                                &len)) < 0) {
+                perror("UDPSocket::recv(char *, size_t)");
                 throw std::runtime_error("Error when receiving data");
             }
             n += m;

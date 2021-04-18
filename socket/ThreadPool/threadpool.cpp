@@ -6,8 +6,7 @@ namespace Sockets {
 
         this->workers.reserve(N);
         for (size_t i = 0; i < N; i++)
-            this->workers.emplace_back(this->serve, std::ref(this->state),
-                                       std::ref(this->jobs),
+            this->workers.emplace_back(this->serve, std::ref(this->state), std::ref(this->jobs),
                                        std::ref(this->mtx));
     }
 
@@ -18,8 +17,7 @@ namespace Sockets {
             (*it).join();
     }
 
-    void ThreadPool::serve(std::atomic_bool &state,
-                           std::queue<std::function<void()>> &q,
+    void ThreadPool::serve(std::atomic_bool &state, std::queue<std::function<void()>> &q,
                            std::mutex &mtx) {
         while (state.load()) {
             std::function<void()> task;

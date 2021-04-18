@@ -9,91 +9,96 @@
 
 namespace Sockets {
 
-    struct addrinfo *resolve(std::string address, std::string service,
-                             Domain dom, Type ty, int flags) {
+    struct addrinfo *resolve(std::string &address, std::string &service, Domain dom, Type ty,
+                             int flags) {
+        char *           addr = nullptr;
+        char *           serv = nullptr;
         int              err;
         struct addrinfo  hints;
-        struct addrinfo *result = nullptr;
-        struct addrinfo *out    = new struct addrinfo();
+        struct addrinfo *out = nullptr;
 
-        std::memset((void *)&hints, 0, sizeof(struct addrinfo));
+        std::memset(&hints, 0, sizeof(struct addrinfo));
 
         hints.ai_family   = static_cast<int>(dom);
         hints.ai_socktype = static_cast<int>(ty);
         hints.ai_flags    = flags;
 
-        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints,
-                               &result)) != 0) {
+        addr = new char[address.size() + 1]();
+        serv = new char[service.size() + 1]();
+
+        std::copy(address.begin(), address.end(), addr);
+        std::copy(service.begin(), service.end(), serv);
+
+        if ((err = getaddrinfo(addr, serv, &hints, &out)) != 0) {
             throw std::runtime_error(std::string(gai_strerror(err)));
         }
 
-        std::memcpy(out, result, sizeof(struct addrinfo));
-        freeaddrinfo(result);
+        freeaddrinfo(out->ai_next);
 
-        out->ai_next = nullptr;
+        delete[] addr;
+        delete[] serv;
+
+        out->ai_next = NULL;
         return out;
     }
 
-    struct addrinfo *resolve(std::string address, uint16_t port, Domain dom,
-                             Type ty, int flags) {
-        int              err;
-        struct addrinfo  hints;
-        struct addrinfo *result  = nullptr;
-        struct addrinfo *out     = new struct addrinfo();
-        std::string      service = std::to_string(port);
-
-        std::memset((void *)&hints, 0, sizeof(struct addrinfo));
-
-        hints.ai_family   = static_cast<int>(dom);
-        hints.ai_socktype = static_cast<int>(ty);
-        hints.ai_flags    = flags;
-
-        if ((err = getaddrinfo(address.c_str(), service.c_str(), &hints,
-                               &result)) != 0) {
-            throw std::runtime_error(std::string(gai_strerror(err)));
-        }
-
-        std::memcpy(out, result, sizeof(struct addrinfo));
-        freeaddrinfo(result);
-
-        out->ai_next = nullptr;
-        return out;
+    struct addrinfo *resolve(std::string &address, uint16_t port, Domain dom, Type ty, int flags) {
+        auto tmp = std::to_string(port);
+        return resolve(address, tmp, dom, ty, flags);
     }
 
-    Socket::Socket(Socket &other) {
+    Socket::Socket(int fd, sockaddr_storage &info, Domain dom, Type ty, Operation op) {
 
-        if ((this->_fd = dup(other.fd())) == -1) {
-            perror("Socket::Socket(Socket &other): ");
-            throw std::runtime_error("Error when duplicating file descriptor");
+        if ((this->_fd = dup(fd)) < 0) {
+            perror("Socket::Socket(int, struct addrinfo &, Domain, Type, "
+                   "Operation)");
+            throw std::runtime_error("Error when making socket non-blocking");
         }
 
-        this->addr      = other.addr;
-        this->domain    = other.domain;
-        this->type      = other.type;
-        this->state     = other.state;
-        this->byteorder = other.byteorder;
-        this->operation = other.operation;
+        this->addr      = info;
+        this->domain    = dom;
+        this->type      = ty;
+        this->operation = op;
     }
 
-    Socket::Socket(Socket &&other) {
+    Socket::Socket(struct addrinfo &info, Domain dom, Type ty, Operation op) {
 
-        if ((this->_fd = dup(other.fd())) == -1) {
-            perror("Socket::Socket(Socket &&other): ");
-            throw std::runtime_error("Error when duplicating file descriptor");
+        if ((this->_fd = socket(info.ai_family, info.ai_socktype, info.ai_protocol)) < 0) {
+            perror("Socket::Socket(struct addrinfo&, Domain, Type "
+                   ", Operation)");
+            throw std::runtime_error("Error when establishing socket");
         }
 
-        this->addr      = other.addr;
-        this->domain    = other.domain;
-        this->type      = other.type;
-        this->state     = other.state;
-        this->byteorder = other.byteorder;
-        this->operation = other.operation;
+        std::memset(&this->addr, 0, sizeof(sockaddr_storage));
+
+        switch (dom) {
+        case Domain::IPv4:
+            std::memcpy(&this->addr, (sockaddr_storage *)info.ai_addr, sizeof(sockaddr_storage));
+            break;
+        case Domain::IPv6:
+            std::memcpy(&this->addr, (sockaddr_storage *)info.ai_addr, sizeof(sockaddr_storage));
+            break;
+        default:
+            // TODO: Handle unix and undefined domains
+            break;
+        }
+
+        if (op == Operation::Non_blocking) {
+            if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL) | O_NONBLOCK) < 0) {
+                perror("Socket::Socket(struct addrinfo&, Domain, Type "
+                       ", Operation)");
+                throw std::runtime_error("Error when making socket non-blocking");
+            }
+        }
+
+        this->domain    = dom;
+        this->type      = ty;
+        this->operation = op;
     }
 
     Socket::Socket(Socket *other) {
-
         if ((this->_fd = dup(other->fd())) == -1) {
-            perror("Socket::Socket(Socket *other): ");
+            perror("Socket::Socket(Socket*)");
             throw std::runtime_error("Error when duplicating file descriptor");
         }
 
@@ -101,8 +106,34 @@ namespace Sockets {
         this->domain    = other->domain;
         this->type      = other->type;
         this->state     = other->state;
-        this->byteorder = other->byteorder;
         this->operation = other->operation;
+    }
+
+    Socket::Socket(Socket &other) {
+
+        if ((this->_fd = dup(other.fd())) == -1) {
+            perror("Socket::Socket(Socket&)");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+
+        this->addr      = other.addr;
+        this->domain    = other.domain;
+        this->type      = other.type;
+        this->state     = other.state;
+        this->operation = other.operation;
+    }
+
+    Socket::Socket(Socket &&other) {
+        if ((this->_fd = dup(other.fd())) == -1) {
+            perror("Socket::Socket(Socket&&)");
+            throw std::runtime_error("Error when duplicating file descriptor");
+        }
+
+        this->addr      = other.addr;
+        this->domain    = other.domain;
+        this->type      = other.type;
+        this->state     = other.state;
+        this->operation = other.operation;
     }
 
     Socket::~Socket() {
@@ -115,7 +146,7 @@ namespace Sockets {
     }
 
     void Socket::close() {
-        if (this->state == State::Undefined || this->state == State::Closed)
+        if (this->state == State::Closed)
             return;
 
         if (shutdown(this->fd(), SHUT_RDWR) == -1 && errno != ENOTCONN)

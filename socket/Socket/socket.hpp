@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 
@@ -25,20 +26,18 @@ namespace Sockets {
         IPv6      = AF_INET6,
     };
     enum class Type { Undefined, Stream = SOCK_STREAM, Datagram = SOCK_DGRAM };
-    enum class State { Undefined, Closed, Connected, Open };
-    enum class ByteOrder { Native, Little, Big };
+    enum class State { Instantiated, Closed, Connected, Open };
     enum class Operation { Blocking, Non_blocking };
 
     // This function are used to convert DNS resolvable names and IPs to a
     // structure that is more suitable for the sockets
-    struct addrinfo *resolve(std::string address, std::string service,
-                             Domain dom = Domain::Undefined,
-                             Type ty = Type::Undefined, int flags = 0);
+    struct addrinfo *resolve(std::string &address, std::string &service,
+                             Domain dom = Domain::Undefined, Type ty = Type::Undefined,
+                             int flags = 0);
 
     // This function are used to convert DNS resolvable names and IPs to a
     // structure that is more suitable for the sockets
-    struct addrinfo *resolve(std::string address, uint16_t port,
-                             Domain dom = Domain::Undefined,
+    struct addrinfo *resolve(std::string &address, uint16_t port, Domain dom = Domain::Undefined,
                              Type ty = Type::Undefined, int flags = 0);
 
     /**
@@ -47,6 +46,9 @@ namespace Sockets {
      * convenience layer between the user and the standard POSIX sockets.
      */
     class Socket {
+        virtual void connect()            = 0;
+        virtual void service(int backlog) = 0;
+
         protected:
         std::mutex       mtx;
         int              _fd;
@@ -54,15 +56,12 @@ namespace Sockets {
 
         Domain    domain    = Domain::Undefined;
         Type      type      = Type::Undefined;
-        State     state     = State::Undefined;
-        ByteOrder byteorder = ByteOrder::Native;
+        State     state     = State::Instantiated;
         Operation operation = Operation::Blocking;
 
-        Socket(int fd, sockaddr_storage addr, Domain dom, Type ty,
-               State st = State::Undefined, ByteOrder by = ByteOrder::Native,
-               Operation op = Operation::Blocking)
-            : _fd(fd), addr(addr), domain(dom), type(ty), state(st),
-              byteorder(by), operation(op){};
+        Socket(int fd, sockaddr_storage &info, Domain dom, Type ty,
+               Operation op = Operation::Blocking);
+        Socket(struct addrinfo &info, Domain dom, Type ty, Operation op = Operation::Blocking);
 
         public:
         Socket(Socket &other);
@@ -85,27 +84,26 @@ namespace Sockets {
      */
     class TCPSocket : public Socket {
         protected:
-        TCPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  ByteOrder by, Operation op)
-            : Socket(fd, addr, dom, Type::Stream, st, by, op) { }
+        void connect() override;
+        void service(int backlog) override;
+
+        TCPSocket(int fd, sockaddr_storage &info, Domain dom, Operation op = Operation::Blocking);
 
         public:
-        TCPSocket(TCPSocket &other) : Socket(other) { }
-        TCPSocket(TCPSocket &&other) : Socket(other) { }
-        TCPSocket(TCPSocket *other) : Socket(other) { }
+        TCPSocket(struct addrinfo &info, Domain dom, Operation op = Operation::Blocking);
+        TCPSocket(TCPSocket &other);
+        TCPSocket(TCPSocket &&other);
+        TCPSocket(TCPSocket *other);
 
         ~TCPSocket();
 
-        static TCPSocket Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo      = ByteOrder::Native,
-                                 Operation op      = Operation::Blocking,
-                                 int       backlog = 100);
+        static std::shared_ptr<TCPSocket> connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op = Operation::Blocking);
+        static std::shared_ptr<TCPSocket> service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op      = Operation::Blocking,
+                                                  int       backlog = 100);
 
-        static TCPSocket Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
-
-        TCPSocket accept(Operation op = Operation::Blocking, int flag = 0);
+        std::shared_ptr<TCPSocket> accept(Operation op = Operation::Blocking, int flag = 0);
 
         void   close();
         size_t send(const char *buf, size_t buflen) override;
@@ -120,26 +118,24 @@ namespace Sockets {
      */
     class UDPSocket : public Socket {
         protected:
-        UDPSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  ByteOrder by, Operation op)
-            : Socket(fd, addr, dom, Type::Datagram, st, by, op) { }
+        void connect() override;
+        void service(int backlog) override;
+
+        UDPSocket(int fd, sockaddr_storage &info, Domain dom, Operation op = Operation::Blocking);
 
         public:
-        UDPSocket(UDPSocket &other) : Socket(other) { }
-        UDPSocket(UDPSocket &&other) : Socket(other) { }
-        UDPSocket(UDPSocket *other) : Socket(other) { }
+        UDPSocket(struct addrinfo &info, Domain dom, Operation op = Operation::Blocking);
+        UDPSocket(UDPSocket &other);
+        UDPSocket(UDPSocket &&other);
+        UDPSocket(UDPSocket *other);
 
         ~UDPSocket();
 
-        static UDPSocket Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
-
-        static UDPSocket Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
-
-        UDPSocket accept(Operation op = Operation::Blocking, int flag = 0);
+        static std::shared_ptr<UDPSocket> connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op = Operation::Blocking);
+        static std::shared_ptr<UDPSocket> service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op      = Operation::Blocking,
+                                                  int       backlog = 100);
 
         void   close();
         size_t send(const char *buf, size_t buflen) override;
@@ -161,33 +157,27 @@ namespace Sockets {
         SSL *ssl = nullptr;
 
         protected:
-        TLSSocket(int fd, sockaddr_storage addr, Domain dom, State st,
-                  ByteOrder by, Operation op)
-            : TCPSocket(fd, addr, dom, st, by, op) { }
-
         TLSSocket(TCPSocket &tcp, SSL_CTX *ctx);
-        TLSSocket(TCPSocket *tcp, SSL_CTX *ctx);
+
+        void connect();
+        void service(int backlog);
 
         public:
-        TLSSocket(TLSSocket &other) : TCPSocket(other) { }
-        TLSSocket(TLSSocket &&other) : TCPSocket(other) { }
-        TLSSocket(TLSSocket *other) : TCPSocket(other) { }
+        TLSSocket(struct addrinfo &info, Domain dom, SSL_CTX *ctx,
+                  Operation op = Operation::Blocking);
+        TLSSocket(TLSSocket &other);
+        TLSSocket(TLSSocket &&other);
 
         ~TLSSocket();
 
-        static TLSSocket Service(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom,
-                                 ByteOrder bo      = ByteOrder::Native,
-                                 Operation op      = Operation::Blocking,
-                                 int       backlog = 100);
+        static std::shared_ptr<TLSSocket> connect(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op = Operation::Blocking);
+        static std::shared_ptr<TLSSocket> service(std::string address, uint16_t port, Domain dom,
+                                                  SSL_CTX *ctx, Operation op = Operation::Blocking,
+                                                  int backlog = 100);
 
-        static TLSSocket Connect(std::string address, uint16_t port,
-                                 SSL_CTX *ctx, Domain dom,
-                                 ByteOrder bo = ByteOrder::Native,
-                                 Operation op = Operation::Blocking);
-
-        TLSSocket accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
-                         int flag = 0);
+        std::shared_ptr<TLSSocket> accept(SSL_CTX *ctx, Operation op = Operation::Blocking,
+                                          int flag = 0);
 
         void   close();
         size_t send(const char *buf, size_t buflen);

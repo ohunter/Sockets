@@ -1,7 +1,9 @@
 # Stuff to ignore
-**/build/*
+**/build*/*
 **/certificates/*
 
 # Stuff to force include
 !**/certificates/*.md
 !**/certificates/*.sh
+format.sh
+.vscode/*

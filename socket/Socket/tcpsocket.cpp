@@ -12,158 +12,147 @@
 
 namespace Sockets {
 
+    TCPSocket::TCPSocket(int fd, sockaddr_storage &info, Domain dom, Operation op)
+        : Socket(fd, info, dom, Type::Stream, op) { }
+
+    TCPSocket::TCPSocket(struct addrinfo &info, Domain dom, Operation op)
+        : Socket(info, dom, Type::Stream, op) { }
+
+    TCPSocket::TCPSocket(TCPSocket *other) : Socket(other) { }
+
+    TCPSocket::TCPSocket(TCPSocket &other) : Socket(other) { }
+
+    TCPSocket::TCPSocket(TCPSocket &&other) : Socket(other) { }
+
     TCPSocket::~TCPSocket() { }
 
-    TCPSocket TCPSocket::Service(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op, int backlog) {
-        int              fd;
-        struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
-        sockaddr_storage info;
+    void TCPSocket::connect() {
+        if (this->state != State::Instantiated)
+            throw std::runtime_error("Cannot connect with a busy socket");
 
-        if ((fd = socket(addr->ai_family, addr->ai_socktype,
-                         addr->ai_protocol)) < 0) {
-            perror("TCPSocket::Service(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo, Operation op, int backlog): ");
-            throw std::runtime_error("Error when establishing socket");
+        if (::connect(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
+            perror("TCPSocket::connect()");
+            throw std::runtime_error("Error when trying to connect to destination");
         }
 
-        std::memset(&info, 0, sizeof(sockaddr_storage));
+        this->state = State::Connected;
+    }
 
-        switch (dom) {
-        case Domain::IPv4:
-        case Domain::IPv6:
-            std::memcpy(&info, addr->ai_addr, sizeof(struct sockaddr_storage));
-            break;
-        default:
-            // TODO: Handle unix and undefined domains
-            break;
-        }
+    void TCPSocket::service(int backlog) {
+        if (this->state != State::Instantiated)
+            throw std::runtime_error("Cannot service with a busy socket");
 
-        if (op == Operation::Non_blocking) {
-            if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror(
-                    "TCPSocket::Service(std::string address, uint16_t port, "
-                    "Domain dom, ByteOrder bo, Operation op, int backlog): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
-            }
-        }
-
-        if (bind(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("TCPSocket::Service(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo, Operation op, int backlog): ");
+        if (bind(this->_fd, (struct sockaddr *)&this->addr, sizeof(this->addr)) < 0) {
+            perror("TCPSocket::service(int)");
             throw std::runtime_error("Error when binding socket to address");
         }
 
-        if (listen(fd, backlog)) {
-            perror("TCPSocket::Service(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo, Operation op, int backlog): ");
+        if (listen(this->_fd, backlog)) {
+            perror("TCPSocket::service(int)");
             throw std::runtime_error("Error when trying to listen on socket");
         }
 
-        freeaddrinfo(addr);
-
-        return TCPSocket(fd, info, dom, State::Open, bo, op);
+        this->state = State::Open;
     }
 
-    TCPSocket TCPSocket::Connect(std::string address, uint16_t port, Domain dom,
-                                 ByteOrder bo, Operation op) {
-        int              fd;
-        struct addrinfo *addr = resolve(address, port, dom, Type::Stream);
-        sockaddr_storage info;
+    std::shared_ptr<TCPSocket> TCPSocket::connect(std::string address, uint16_t port, Domain dom,
+                                                  Operation op) {
+        auto addr = resolve(address, port, dom, Type::Stream);
 
-        if ((fd = socket(addr->ai_family, addr->ai_socktype,
-                         addr->ai_protocol)) < 0) {
-            perror("TCPSocket::Connect(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo,Operation op): ");
-            throw std::runtime_error("Error when establishing socket");
-        }
-
-        std::memset(&info, 0, sizeof(sockaddr_storage));
-
-        switch (dom) {
-        case Domain::IPv4:
-        case Domain::IPv6:
-            std::memcpy(&info, addr->ai_addr, sizeof(struct sockaddr_storage));
-            break;
-        default:
-            // TODO: Handle unix and undefined domains
-            break;
-        }
-
-        if (op == Operation::Non_blocking) {
-            if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) {
-                perror("TCPSocket::Connect(std::string address, uint16_t port, "
-                       "Domain dom, ByteOrder bo,Operation op): ");
-                throw std::runtime_error(
-                    "Error when making socket non-blocking");
-            }
-        }
-
-        if (connect(fd, (struct sockaddr *)&info, sizeof(info)) < 0) {
-            perror("TCPSocket::Connect(std::string address, uint16_t port, "
-                   "Domain dom, ByteOrder bo,Operation op): ");
-            throw std::runtime_error(
-                "Error when trying to connect to destination");
-        }
+        std::shared_ptr<TCPSocket> sock = std::make_shared<TCPSocket>(TCPSocket(*addr, dom, op));
 
         freeaddrinfo(addr);
 
-        return TCPSocket(fd, info, dom, State::Connected, bo, op);
+        sock->connect();
+        return sock;
     }
 
-    TCPSocket TCPSocket::accept(Operation op, int flag) {
+    std::shared_ptr<TCPSocket> TCPSocket::service(std::string address, uint16_t port, Domain dom,
+                                                  Operation op, int backlog) {
+        auto addr = resolve(address, port, dom, Type::Stream);
+
+        std::shared_ptr<TCPSocket> sock = std::make_shared<TCPSocket>(TCPSocket(*addr, dom, op));
+
+        freeaddrinfo(addr);
+
+        sock->service(backlog);
+        return sock;
+    }
+
+    std::shared_ptr<TCPSocket> TCPSocket::accept(Operation op, int flag) {
         int              fd;
         sockaddr_storage info;
         socklen_t        len = sizeof(struct sockaddr_in);
 
         if (this->state != State::Open)
-            throw std::runtime_error(
-                "Cannot accept connection on a socket that is not open");
+            throw std::runtime_error("Cannot accept connection on a socket that is not open");
 
         if (op == Operation::Non_blocking)
             flag |= SOCK_NONBLOCK;
 
-        if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len,
-                            flag)) == -1) {
-            perror("TCPSocket::accept(Operation op, int flag): ");
+        if ((fd = ::accept4(this->fd(), (struct sockaddr *)&info, &len, flag)) == -1) {
+            perror("TCPSocket::accept(Operation, int)");
             throw std::runtime_error("Error on accepting connection");
         }
 
-        return TCPSocket(fd, addr, this->domain, State::Connected,
-                         this->byteorder, op);
+        std::shared_ptr<TCPSocket> out =
+            std::make_shared<TCPSocket>(TCPSocket(fd, addr, this->domain, op));
+
+        out->state = State::Connected;
+
+        // Close the accepted file descriptor if it has been duplicated in the
+        // constructor
+        if (fd != out->fd())
+            if (::close(fd) != 0 && errno != ENOTCONN)
+                perror("Non-fatal error when closing file descriptor");
+
+        return out;
     }
 
     void TCPSocket::close() { Socket::close(); }
 
     size_t TCPSocket::send(const char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        size_t  n = 0;
+        ssize_t m = 0;
 
-        while (n < buflen) {
-            if ((m = ::send(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("TCPSocket::send(const char *buf, size_t buflen): ");
-                throw std::runtime_error("Error when sending data");
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = ::send(this->_fd, &buf[n], buflen - n, 0);
+
+            if (m < 0) {
+                if (this->operation == Operation::Blocking || errno != EAGAIN)
+                    perror("TCPSocket::recv(char *, size_t)");
+                break;
+            } else if (m == 0) {
+                break;
             }
+
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
         return n;
     }
 
     size_t TCPSocket::recv(char *buf, size_t buflen) {
-        std::lock_guard<std::mutex> lock(this->mtx);
-        size_t                      n = 0;
-        ssize_t                     m = 0;
+        size_t  n = 0;
+        ssize_t m = 0;
 
-        while (n < buflen) {
-            if ((m = ::recv(this->_fd, &buf[n], buflen - n, 0)) < 0) {
-                perror("TCPSocket::recv(char *buf, size_t buflen): ");
-                throw std::runtime_error("Error when receiving data");
+        std::lock_guard<std::mutex> lock(this->mtx);
+
+        do {
+            m = ::recv(this->_fd, &buf[n], buflen - n, 0);
+
+            if (m < 0) {
+                if (this->operation == Operation::Blocking || errno != EAGAIN)
+                    perror("TCPSocket::recv(char *, size_t)");
+                break;
+            } else if (m == 0) {
+                break;
             }
+
             n += m;
-        }
+        } while (n < buflen && this->operation == Operation::Blocking);
 
         return n;
     }
