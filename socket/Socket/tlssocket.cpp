@@ -120,11 +120,13 @@ namespace Sockets {
         if ((m = SSL_accept(out->ssl)) <= 0)
             throw_ssl_error(SSL_get_error(this->ssl, m));
 
-        if (op == Operation::Non_blocking)
-            if (fcntl(this->_fd, F_SETFL, fcntl(this->_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
+        if (op == Operation::Non_blocking) {
+            if (fcntl(out->_fd, F_SETFL, fcntl(out->_fd, F_GETFL, 0) | O_NONBLOCK) == -1) {
                 perror("TLSSocket::accept(SSL_CTX*, Operation, int)");
                 throw std::runtime_error("Error when making socket non-blocking");
             }
+            out->operation = op;
+        }
 
         return out;
     }
@@ -185,6 +187,8 @@ namespace Sockets {
     }
 
     size_t TLSSocket::recv(char *buf, size_t buflen) {
+        // TODO: Fix this for non-blocking sockets
+
         size_t  n = 0;
         ssize_t m = 0;
 
